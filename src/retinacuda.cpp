@@ -9,14 +9,17 @@
 #include "Cuda/cuda_image.h"
 
 #include "Cuda/cuda_retina_kernels.cuh"
-//extern "C"{
-//void addKernel();
-//void multiConvolve(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Cell* cellsArrayGPU, int cellsArrayWidth, int cellsArrayHeight);
-//void channelSampling(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, cv::cuda::PtrStepSz<u_char> samplingMapGPU);
 
-//Cell* loadCellsArrayToGPU(Cell* cellsArrayHost, int width, int height);
+//Human mgc
+float excentricity(float r){
+    float dgf0 = 30000; // density at r0
+    float ak = 0.9729; // first term weight
+    float r2k = 1.084;
+    float rek = 7.633;
 
-//}
+    //http://jov.arvojournals.org/article.aspx?articleid=2279458#87788067
+    return dgf0 * (ak*pow((1 + r/r2k),-2) + (1-ak)*exp(-r/rek));
+}
 
 class RetinaCudaException : public std::exception{
 public:
@@ -53,11 +56,14 @@ RetinaCuda::RetinaCuda(int gpu)
     std::cout<<"Using gpu: "<<deviceInfos.name()<<std::endl;
 }
 
-void RetinaCuda::initRetina(int cellsArrayWidth, int cellsArrayHeight)
+void RetinaCuda::initRetina(Parameters param)
 {
 
+    cellsArrayWidth = param.cells_width;
+    cellsArrayHeight = param.cells_height;
+    parameters = param;
     cv::Mat coneMapping = initConeSampling(cellsArrayWidth, cellsArrayHeight);
-    std::vector<Cell> cells = initGanglionarCells(cellsArrayWidth,cellsArrayHeight);
+    std::vector<Cell> cells = initGanglionarCells();
 
 
     gpuChannelSampling.create(cellsArrayWidth,cellsArrayHeight,1);
@@ -66,7 +72,7 @@ void RetinaCuda::initRetina(int cellsArrayWidth, int cellsArrayHeight)
     //initCellsArray(cells,cellsArrayWidth,cellsArrayHeight);
 }
 
-std::vector<Cell> RetinaCuda::initGanglionarCells(int cellsArrayWidth, int cellsArrayHeight)
+std::vector<Cell> RetinaCuda::initGanglionarCells()
 {
     std::vector<Cell> cellsCPU;
     cellsCPU.resize(cellsArrayWidth*cellsArrayHeight);
@@ -83,12 +89,13 @@ std::vector<Cell> RetinaCuda::initGanglionarCells(int cellsArrayWidth, int cells
     //Default model
     for(int j=0; j<cellsArrayHeight;j++){
         for(int i=0; i<cellsArrayWidth;i++){
-            int linearReduction = 6;
+            //int linearReduction = 6;
             r = sqrt((cellsArrayWidth/2.0-i)*(cellsArrayWidth/2.0-i)+(cellsArrayHeight/2.0-j)*(cellsArrayHeight/2.0-j));
-            ganglionarExternalRadius = MIN(MAX(2.0,(r/linearReduction + (getRandom()-1/2.0)*(r/linearReduction/2.0))),60.0);
+            ganglionarExternalRadius = mgc_dentric_coverage(r);
             ganglionarInternalRadius = MAX(1.0,ganglionarExternalRadius/2.0);
-            cell.center_x = i;
-            cell.center_y = j;
+            cv::Point src_pos = getPosition(mgc_position_mapping(r),i,j);
+            cell.center_x = src_pos.x;
+            cell.center_y = src_pos.y;
             cell.extern_radius = ganglionarExternalRadius;
             cell.intern_radius = ganglionarInternalRadius;
             cell.type = getRandom() < 0.5 ? 0: 1;

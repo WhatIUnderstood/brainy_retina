@@ -10,11 +10,27 @@
 #include "opencv/highgui.h"
 #include "opencv2/opencv.hpp"
 
+
+
 int main(int argc, char *argv[])
 {
+//    for(unsigned int i=0; i<50; i++){
+//        std::cout<<std::to_string(i)<<" "<<excentricity(i)<<std::endl;
+//    }
+//    return 0;
+    RetinaCuda::Parameters params;
+    params.cells_height = 480;
+    params.cells_width = 640;
+    params.fovea_magnocellular_radius = 10;
+    params.fovea_pixels_by_cell = 1;
+    params.max_pixels_by_cell = 128;
+    params.fovea_inter_cells_distance = 1;
+    params.max_inter_cells_distance = 2;
+    params.input_width = 640;
+    params.input_height = 480;
+
     RetinaCuda retina;
-    retina.addKernels();
-    retina.initRetina(640,480);
+    retina.initRetina(params);
 
     cv::cuda::GpuMat gpuMatSrc(640,480,CV_8UC1);
     cv::cuda::GpuMat gpuMatDst(640,480,CV_8UC1);
@@ -62,7 +78,7 @@ int main(int argc, char *argv[])
         // Holds the colormap version of the image:
         cv::Mat cv_cm_img0;
         // Apply the colormap:
-        cv::applyColorMap(frameRetina, cv_cm_img0, cv::COLORMAP_JET);
+        cv::applyColorMap(frameRetina, cv_cm_img0, cv::COLORMAP_JET);//COLORMAP_RAINBOW COLORMAP_JET
 
         //gpuMatSrc.download(frameRetina);
         std::cout<<"frameRetina "<<frameRetina.cols<<frameRetina.rows<<std::endl;

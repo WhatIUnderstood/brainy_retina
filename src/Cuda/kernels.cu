@@ -115,16 +115,16 @@ __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda
             if(x+xi>0 && x+xi<nbcols && y+yi>0 && y+yi<nbrows){
                 if(xi*xi + yi*yi < in_radius_squarred){//if we are in the radius
                     if(cell.type == 0){
-                        value_center += imgSrc(y+yi,x+xi);
+                        value_center += (imgSrc(y+yi,x+xi)-128);
                     }else{
-                        value_center -= imgSrc(y+yi,x+xi);
+                        value_center -= (imgSrc(y+yi,x+xi)-128);
                     }
                     nbCenter++;
                 }else if(xi*xi + yi*yi < ex_radius_squarred){
                     if(cell.type == 0){
-                        value_ext -= imgSrc(y+yi,x+xi);
+                        value_ext -= (imgSrc(y+yi,x+xi)-128);
                     }else{
-                        value_ext += imgSrc(y+yi,x+xi);
+                        value_ext += (imgSrc(y+yi,x+xi)-128);
                     }
                     nbOut++;
                 }
@@ -139,7 +139,7 @@ __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda
         nbOut = 1;
     }
 
-    int total_value = 128 + (value_center/(float)nbCenter + value_ext/(float)nbOut)/2;
+    int total_value = 128 + (value_center/(float)nbCenter + value_ext/(float)nbOut)/2.0;//*cell.extern_radius;
 
 
 //    float sub = (value_center/(float)nbOn + value_ext/(float)nbOff)/2.0;;
