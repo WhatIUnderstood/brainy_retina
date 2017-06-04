@@ -1,101 +1,78 @@
 #ifndef CUDA_ARRAYS_H
 #define CUDA_ARRAYS_H
 
-//#include <cuda_runtime.h>
-//#include "declaration_helper.cuh"
-//#include "host_arrays.h"
-//#include "vector_types.h"
+#include <cuda_runtime.h>
+#include "declaration_helper.cuh"
 
-//#include "Cuda/cuda_image.h"
-
-//namespace cretina{
-
-////template< typename T>
-//class GpuArray{
-//public:
-//    GpuArray();
-//    GpuArray(char * data, size_t byte_size);
-//    GpuArray(size_t byte_size);
-//    ~GpuArray();
-//    void fill(unsigned char value);
-//    size_t size();
-//    bool resize(size_t size);
-//    bool dowload(HostArray &array, cudaStream_t stream);
-//    bool upload(HostArray &array, cudaStream_t stream);
-//    char * data() const;
-//    char& at(size_t i);
-
-//private:
-//    char * d_buffer;
-//    //size_t bit_size;
-//    size_t byte_size;
-//    bool dataOwned;
-//};
-
-//class GpuImage: public GpuArray{
-//public:
-
-//    GpuImage(){
-//        this->_width = 0;
-//        this->_height = 0;
-//        this->_depth = 0;
-//    }
-
-//    GpuImage(int width, int height, int depth, char *data):GpuArray(data,width*height*depth)
-//    {
-//        this->_width = width;
-//        this->_height = height;
-//        this->_depth = depth;
-//    }
-
-//    bool create(int width, int height, int depth){
-//        this->_width = width;
-//        this->_height = height;
-//        this->_depth = depth;
-//        GpuArray::resize(width*height*depth);
-//    }
-
-//    bool dowload(HostImage &array, cudaStream_t stream = cudaStreamDefault){
-//        _width = array.width();
-//        _height = array.height();
-//        _depth = array.depth();
-//        return GpuArray::dowload(array,stream);
-//    }
-
-//    bool upload(HostImage &array, cudaStream_t stream = cudaStreamDefault){
-//        array.resize(_width,_height,_depth);
-//        return GpuArray::upload(array,stream);
-//    }
-
-//    template <typename _Tp> operator PtrStepSz<_Tp>() const;
-//    template <typename _Tp> operator PtrStep<_Tp>() const;
+class HostBitArray{
+public:
+    HostBitArray();
+    HostBitArray(size_t size, bool val = false);
+    ~HostBitArray();
+    void fill(bool value);
+    size_t size();
+    size_t bytes_size();
+    bool resize(size_t size);
+    char at(size_t i);
+    void setValue(int index, bool val);
+    char * data();
+    //bool download(char* array, cudaStream_t stream);
+private:
+    char * buffer;
+    size_t bit_size;
+    size_t byte_size;
+};
 
 
+class GpuBitArray{
+public:
+    GpuBitArray();
+    GpuBitArray(char * data, size_t byte_size);
+    GpuBitArray(size_t size);
+    ~GpuBitArray();
+    void fill(bool value);
+    size_t size();
+    size_t bytes_size();
+    bool resize(size_t size);
+    bool dowload(HostBitArray& array, cudaStream_t stream = cudaStreamDefault);
+    bool upload(HostBitArray& array, cudaStream_t stream = cudaStreamDefault);
+    char * data();
 
+private:
+    char * d_buffer;
+    size_t bit_size;
+    size_t byte_size;
+    bool dataOwned;
+};
 
-//    int width(){return _width;}
-//    int height(){return _height;}
-//    int depth(){return _depth;}
-//private:
-//    int _width;
-//    int _height;
-//    int _depth;
+class HostBitArray2D: public HostBitArray{
+public:
+    HostBitArray2D():HostBitArray(){bit_width = 0; bit_height = 0;}
+    HostBitArray2D(size_t bit_width, size_t bit_height):HostBitArray(bit_width*bit_height),bit_width(bit_width),bit_height(bit_height){}
+    bool resize(size_t size){bit_width = size; bit_height = 1;return HostBitArray::resize(size);}
+    bool resize(size_t w,size_t h){bit_width = w; bit_height = h;return HostBitArray::resize(w*h);}
+    int width(){return bit_width;}
+    int height(){return bit_height;}
+    int bytesWidth(){return bit_width/8;}
+    int bytesHeight(){return bit_height;}
+private:
+    friend class GpuBitArray2D;
+    size_t bit_width;
+    size_t bit_height;
+};
 
-//};
-
-//template <class T> inline
-//GpuImage::operator PtrStepSz<T>() const
-//{
-//    return PtrStepSz<T>(_height, _width, (T*)data(), _width*_depth);
-//}
-
-//template <class T> inline
-//GpuImage::operator PtrStep<T>() const
-//{
-//    return PtrStep<T>((T*)data(),  _width*_depth);
-//}
-
-//}
+class GpuBitArray2D: public GpuBitArray{
+public:
+    GpuBitArray2D():GpuBitArray(){bit_width = 0; bit_height = 0;}
+    GpuBitArray2D(char * data, size_t bit_width, size_t bit_height):GpuBitArray(data,bit_width*bit_height),bit_width(bit_width),bit_height(bit_height){}
+    bool resize(size_t size){bit_width = size; bit_height = 1;return GpuBitArray::resize(size);}
+    bool resize(size_t w,size_t h){bit_width = w; bit_height = h;return GpuBitArray::resize(w*h);}
+    bool dowload(HostBitArray& array, cudaStream_t stream = cudaStreamDefault){return GpuBitArray::dowload(array,stream);}
+    bool upload(HostBitArray2D& array, cudaStream_t stream = cudaStreamDefault){array.bit_width=bit_width;array.bit_height=bit_height;return GpuBitArray::upload(array,stream);}
+private:
+    size_t bit_width;
+    size_t bit_height;
+};
 
 
 
