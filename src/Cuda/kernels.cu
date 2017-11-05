@@ -92,7 +92,7 @@ __global__ void photoreceptorSamplingKernel1C(cv::cuda::PtrStepSz<u_char> imgSrc
     int y = cone.center_y;
 
 //    if(xdst<imgDst.cols && ydst < imgDst.rows)
-        imgDst(ydst,xdst) = imgSrc(y,x);
+    imgDst(ydst,xdst) = imgSrc(y,x);
 
 }
 
@@ -261,8 +261,6 @@ __global__ void sparseKernel(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, char
             //tempData &= !(1<<i%8); //Set to false
         }
     }
-    unsigned char dd =0;
-
 
     *currentSparseData = (char)tempData;
 }
@@ -329,7 +327,7 @@ void photoreceptorSampling1C(cv::cuda::PtrStepSz<uchar> imgSrc, cv::cuda::PtrSte
     //gridSize = (int)ceil((float)(imgDst.cols*imgDst.rows)/blockSize);
     grid.x = (int)ceil((float)(imgDst.cols)/block.x);
     grid.y = (int)ceil((float)(imgDst.rows)/block.y);
-
+//__global__ void photoreceptorSamplingKernel1C(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Cone* conesArray, int conesArrayWidth, int /*conesArrayHeight*/)
     photoreceptorSamplingKernel1C<<<grid, block>>>(imgSrc, imgDst, coneArrayGPU, conesWidth,conesHeight);
 
 }

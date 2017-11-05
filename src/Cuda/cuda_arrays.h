@@ -1,7 +1,7 @@
 #ifndef CUDA_ARRAYS_H
 #define CUDA_ARRAYS_H
 
-#include <cuda_runtime.h>
+
 #include "declaration_helper.cuh"
 
 class HostBitArray{
@@ -34,8 +34,8 @@ public:
     size_t size();
     size_t bytes_size();
     bool resize(size_t size);
-    bool dowload(HostBitArray& array, cudaStream_t stream = cudaStreamDefault);
-    bool upload(HostBitArray& array, cudaStream_t stream = cudaStreamDefault);
+    bool dowload(HostBitArray& array);
+    bool upload(HostBitArray& array);
     char * data();
 
 private:
@@ -67,8 +67,8 @@ public:
     GpuBitArray2D(char * data, size_t bit_width, size_t bit_height):GpuBitArray(data,bit_width*bit_height),bit_width(bit_width),bit_height(bit_height){}
     bool resize(size_t size){bit_width = size; bit_height = 1;return GpuBitArray::resize(size);}
     bool resize(size_t w,size_t h){bit_width = w; bit_height = h;return GpuBitArray::resize(w*h);}
-    bool dowload(HostBitArray& array, cudaStream_t stream = cudaStreamDefault){return GpuBitArray::dowload(array,stream);}
-    bool upload(HostBitArray2D& array, cudaStream_t stream = cudaStreamDefault){array.bit_width=bit_width;array.bit_height=bit_height;return GpuBitArray::upload(array,stream);}
+    bool dowload(HostBitArray& array){return GpuBitArray::dowload(array);}
+    bool upload(HostBitArray2D& array){array.bit_width=bit_width;array.bit_height=bit_height;return GpuBitArray::upload(array);}
 private:
     size_t bit_width;
     size_t bit_height;

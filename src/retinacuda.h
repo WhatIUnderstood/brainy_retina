@@ -1,13 +1,14 @@
 #ifndef RETINACUDA_H
 #define RETINACUDA_H
 
+#include <memory>
 #include <vector>
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui.hpp>
 #include "opencv2/cuda.hpp"
 #include "Cuda/retinastructs.h"
-#include <cuda.h>
-#include <builtin_types.h>
+//#include <cuda.h>
+//#include <builtin_types.h>
 
 #include "Cuda/cuda_arrays.h"
 
@@ -16,6 +17,11 @@ class RetinaCuda
 public:
 
     struct Parameters{
+        Parameters(){
+            input_width = 0;
+            input_height = 0;
+            random_seed = 0;
+        }
         //Raw input params
         int input_width;
         int input_height;
@@ -37,19 +43,22 @@ public:
         double gc_max_cones_by_cell;
         double gc_max_cones_by_cell_radius;
         double gc_max_inter_cells_distance;
+
+        int random_seed;
     };
 
     RetinaCuda(int gpu = 0);
+    ~RetinaCuda();
     void initRetina(Parameters param);
-    void applyPhotoreceptorSampling(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cudaStream_t cuda_stream = cudaStreamDefault);
-    void applyMultiConvolve(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cudaStream_t stream = cudaStreamDefault);
-    void applySelectiveGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cv::cuda::GpuMat &prevImage, cudaStream_t stream = cudaStreamDefault);
+    void applyPhotoreceptorSampling(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
+    void applyMultiConvolve(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
+    void applySelectiveGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cv::cuda::GpuMat &prevImage);
 
     //
-    void sparse(cv::cuda::GpuMat &imgSrc, int bits, GpuBitArray2D &output, unsigned char min_value = 0,unsigned char max_value = 255, cudaStream_t stream = cudaStreamDefault);
+    void sparse(cv::cuda::GpuMat &imgSrc, int bits, GpuBitArray2D &output, unsigned char min_value = 0,unsigned char max_value = 255);
 
     //Test
-    void discretise(cv::cuda::GpuMat &imgSrc, int vals, cv::cuda::GpuMat &output, unsigned char min_value = 0,unsigned char max_value = 255, cudaStream_t stream = cudaStreamDefault);
+    void discretise(cv::cuda::GpuMat &imgSrc, int vals, cv::cuda::GpuMat &output, unsigned char min_value = 0, unsigned char max_value = 255);
     void addKernels();
 
 protected:
@@ -62,6 +71,7 @@ private:
     bool initCellsArray(std::vector<Ganglionar> cellsArrayCPU, int cellsArrayWidth, int cellsArrayHeight);
 
     /// Generation functions ///
+    double setRandomSeed(int val);
     double getRandom();
     double mgc_dentric_coverage(float distance_from_center){
             // 2 -> 0.5 -> 0.05
@@ -157,7 +167,9 @@ private:
     int conesArrayWidth;
     int conesArrayHeight;
     Parameters parameters;
+    //std::shared_ptr<void *> cuda_stream_ptr;
 
+    std::mt19937 mt_rand;
 
 };
 

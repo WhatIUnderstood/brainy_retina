@@ -38,3 +38,4 @@ build/*
 *.cache
 *build
 tmp
+*.user.*

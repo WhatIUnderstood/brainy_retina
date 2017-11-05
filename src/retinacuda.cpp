@@ -7,8 +7,10 @@
 #include <opencv2/core/cuda_stream_accessor.hpp>
 #include <opencv2/core/cuda.hpp>
 #include "Cuda/cuda_image.h"
-
+#include "cuda_runtime.h"
 #include "Cuda/cuda_retina_kernels.cuh"
+
+#include <iostream>
 
 //Human mgc
 float excentricity(float r){
@@ -41,14 +43,21 @@ private:
 RetinaCuda::RetinaCuda(int gpu)
 {
     gpuCells = 0;
+    //cuda_stream_ptr.reset(new cudaStream_t());
+    //*(cudaStream_t*)cuda_stream_ptr = cudaStreamDefault;
 
-    int count = cv::cuda::getCudaEnabledDeviceCount();
+    int count;
+    cudaError_t err = cudaGetDeviceCount(&count);
+    //int count = cv::cuda::getCudaEnabledDeviceCount();
 
-    if(count == 0){
-        throw RetinaCudaException("No gpu avaliable");
+    if(count == 0 || err != cudaSuccess){
+
+        throw RetinaCudaException(std::string("No gpu avaliable: ")+cudaGetErrorString(err));
     }else if(count<gpu){
         throw RetinaCudaException("Gpu not avaliable");
     }
+
+    //err = cudaSetDevice(gpu)
     cv::cuda::setDevice(gpu);
 
     cv::cuda::DeviceInfo deviceInfos(gpu);
@@ -56,20 +65,16 @@ RetinaCuda::RetinaCuda(int gpu)
     std::cout<<"Using gpu: "<<deviceInfos.name()<<std::endl;
 }
 
-void RetinaCuda::initRetina(Parameters param)
+RetinaCuda::~RetinaCuda()
 {
 
-    //cellsArrayWidth = param.ganglionar_cells_width;
-    //cellsArrayHeight = param.ganglionar_cells_height;
+}
+
+void RetinaCuda::initRetina(Parameters param)
+{
     parameters = param;
-    std::vector<Cone> coneMapping = initCone(param.input_width, param.input_height);
-    std::vector<Ganglionar> cells = initGanglionarCells(conesArrayWidth,conesArrayHeight);
-
-
-    //gpuChannelSampling.create(cellsArrayWidth,cellsArrayHeight,1);
-    //gpuChannelSampling.upload(coneMapping);
-
-    //initCellsArray(cells,cellsArrayWidth,cellsArrayHeight);
+    initCone(param.input_width, param.input_height);
+    initGanglionarCells(conesArrayWidth,conesArrayHeight);
 }
 
 std::vector<Ganglionar> RetinaCuda::initGanglionarCells(int conesWidth, int conesHeight)
@@ -119,6 +124,7 @@ std::vector<Ganglionar> RetinaCuda::initGanglionarCells(int conesWidth, int cone
 
     cv::Mat mat(cellsArrayHeight,cellsArrayWidth,CV_8UC3,cv::Vec3b(255,255,255));
 
+    setRandomSeed(parameters.random_seed);
     //Default model
     for(int j=0; j<cellsArrayHeight;j++){
         for(int i=0; i<cellsArrayWidth;i++){
@@ -197,6 +203,7 @@ std::vector<Cone> RetinaCuda::initCone(int inputWidth, int inputHeight)
     cv::Mat mat(coneWidth,coneWidth,CV_8UC3,cv::Vec3b(255,255,255));
 
     //Default model
+    setRandomSeed(parameters.random_seed);
     for(int j=0; j<coneHeight;j++){
         for(int i=0; i<coneWidth;i++){
             //int linearReduction = 6;
@@ -241,18 +248,25 @@ std::vector<Cone> RetinaCuda::initCone(int inputWidth, int inputHeight)
 
 
 
-void RetinaCuda::applyPhotoreceptorSampling(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cudaStream_t cuda_stream)
+void RetinaCuda::applyPhotoreceptorSampling(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst)
 {
+    std::cout<<"applyPhotoreceptorSampling"<<std::endl;
     imgDst.create(conesArrayHeight,conesArrayWidth,CV_8UC1);
-
+    imgDst.setTo(0);
     //gpu::channelSampling(imgSrc,imgDst,gpuChannelSampling,cuda_stream);
 
+
     if(imgSrc.channels() == 1){
-        gpu::photoreceptorSampling1C(imgSrc,imgDst,gpuCones,conesArrayWidth,conesArrayHeight,cuda_stream);
+        gpu::photoreceptorSampling1C(imgSrc,imgDst,gpuCones,conesArrayWidth,conesArrayHeight,cudaStreamDefault/*(cudaStream_t)cuda_stream*/);
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess){
+            std::cerr<<"Error: "<< cudaGetErrorString(err)<<" (you may have incorrect arch in cmake)"<<std::endl;
+            exit(1);
+        }
     }else{
         std::cerr<<"Not implemented"<<std::endl;
     }
-
+std::cout<<"applyPhotoreceptorSampling end"<<std::endl;
 }
 
 bool RetinaCuda::initCellsArray(std::vector<Ganglionar> cellsArrayCPU, int cellsArrayWidth, int cellsArrayHeight)
@@ -267,6 +281,11 @@ bool RetinaCuda::initCellsArray(std::vector<Ganglionar> cellsArrayCPU, int cells
     this->cellsArrayHeight = cellsArrayHeight;
 
     return true;
+}
+
+double RetinaCuda::setRandomSeed(int val)
+{
+    mt_rand.seed(val);
 }
 
 bool RetinaCuda::initPhotoArray(std::vector<Cone> conesArrayCPU, int conesArrayWidth, int conesArrayHeight)
@@ -286,34 +305,56 @@ bool RetinaCuda::initPhotoArray(std::vector<Cone> conesArrayCPU, int conesArrayW
 
 double RetinaCuda::getRandom()
 {
-    return rand() / ((double)(RAND_MAX));
+    //std::mt19937 mt_rand(0);//Use always the same seed for regeneration
+
+    return mt_rand() / ((double)(std::mt19937::max()));
 }
 
-void RetinaCuda::applyMultiConvolve(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cudaStream_t stream)
+void RetinaCuda::applyMultiConvolve(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst)
 {
     //imgDst
     imgDst.create(cellsArrayHeight,cellsArrayWidth,CV_8UC1);
     //qDebug()<<"SIZES:"<<imgSrc.cols<<imgSrc.rows<<imgDst.cols<<imgDst.rows;
-    gpu::multiConvolve(imgSrc,imgDst,gpuCells,cellsArrayWidth,cellsArrayHeight,stream);
+    gpu::multiConvolve(imgSrc,imgDst,gpuCells,cellsArrayWidth,cellsArrayHeight,cudaStreamDefault);
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess){
+        std::cerr<<"Error: "<< cudaGetErrorString(err)<<" (you may have incorrect arch in cmake)"<<std::endl;
+        exit(1);
+    }
 }
 
-void RetinaCuda::applySelectiveGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cv::cuda::GpuMat &prevImage, cudaStream_t stream)
+void RetinaCuda::applySelectiveGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cv::cuda::GpuMat &prevImage)
 {
     //imgDst
     imgDst.create(conesArrayHeight,conesArrayWidth,CV_8UC1);
     //qDebug()<<"SIZES:"<<imgSrc.cols<<imgSrc.rows<<imgDst.cols<<imgDst.rows;
-    gpu::directionSelectiveComputation(imgSrc,imgDst,prevImage,stream);
+    gpu::directionSelectiveComputation(imgSrc,imgDst,prevImage,cudaStreamDefault);
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess){
+        std::cerr<<"Error: "<< cudaGetErrorString(err)<<" (you may have incorrect arch in cmake)"<<std::endl;
+        exit(1);
+    }
 }
 
-void RetinaCuda::sparse(cv::cuda::GpuMat &imgSrc, int bits, GpuBitArray2D &output, unsigned char min_value, unsigned char max_value, cudaStream_t stream)
+void RetinaCuda::sparse(cv::cuda::GpuMat &imgSrc, int bits, GpuBitArray2D &output, unsigned char min_value, unsigned char max_value)
 {
-    gpu::sparse(imgSrc,bits,output,min_value,max_value,stream);
+    gpu::sparse(imgSrc,bits,output,min_value,max_value,cudaStreamDefault);
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess){
+        std::cerr<<"Error: "<< cudaGetErrorString(err)<<" (you may have incorrect arch in cmake)"<<std::endl;
+        exit(1);
+    }
 }
 
-void RetinaCuda::discretise(cv::cuda::GpuMat &imgSrc, int vals, cv::cuda::GpuMat &output, unsigned char min_value, unsigned char max_value, cudaStream_t stream)
+void RetinaCuda::discretise(cv::cuda::GpuMat &imgSrc, int vals, cv::cuda::GpuMat &output, unsigned char min_value, unsigned char max_value)
 {
     output.create(imgSrc.rows,imgSrc.cols,CV_8UC1);
-    gpu::discretise(imgSrc,vals,output,min_value,max_value,stream);
+    gpu::discretise(imgSrc,vals,output,min_value,max_value,cudaStreamDefault);
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess){
+        std::cerr<<"Error: "<< cudaGetErrorString(err)<<" (you may have incorrect arch in cmake)"<<std::endl;
+        exit(1);
+    }
 }
 
 void RetinaCuda::addKernels()

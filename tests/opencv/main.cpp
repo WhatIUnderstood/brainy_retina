@@ -42,7 +42,7 @@ int main(int argc, char *argv[])
 
 
 
-    RetinaCuda retina;
+    RetinaCuda retina(1);
     retina.initRetina(params);
 
 
@@ -51,10 +51,6 @@ int main(int argc, char *argv[])
     cv::cuda::GpuMat gpuMatDst(640,480,CV_8UC1);
     cv::cuda::GpuMat gpuMatPrev(640,480,CV_8UC1);
     cv::cuda::GpuMat gpuMatDirectionSelectiveOuput(640,480,CV_8UC1);
-    GpuBitArray2D gpuSparseArray;
-    GpuBitArray2D gpuSparseDirectionSelectiveArray;
-
-    cv::cuda::GpuMat gpudiscreteGCArray(640,480,CV_8UC1);
 
     cv::VideoCapture cap(0); // open the video file for reading
 
@@ -68,7 +64,7 @@ int main(int argc, char *argv[])
     //double fps = cap.get(cv::CAP_PROP_FPS); //get the frames per seconds of the video
     //qDebug() << "Frame per seconds : " << fps << endl;
 
-    cv::namedWindow("MyVideo",cv::WINDOW_AUTOSIZE); //create a window called "MyVideo"
+    //cv::namedWindow("MyVideo",cv::WINDOW_AUTOSIZE); //create a window called "MyVideo"
     //int i=0;
 
     while(true)
@@ -95,8 +91,8 @@ int main(int argc, char *argv[])
         retina.applyPhotoreceptorSampling(gpuMatSrc,gpuMatCones);
         retina.applyMultiConvolve(gpuMatCones,gpuMatDst);
         retina.applySelectiveGC(gpuMatCones,gpuMatDirectionSelectiveOuput,gpuMatPrev);
-        retina.sparse(gpuMatDst,16,gpuSparseArray);
-        retina.sparse(gpuMatDirectionSelectiveOuput,8,gpuSparseDirectionSelectiveArray,0,64);
+        ///retina.sparse(gpuMatDst,16,gpuSparseArray);
+        ///retina.sparse(gpuMatDirectionSelectiveOuput,8,gpuSparseDirectionSelectiveArray,0,64);
 
         TimePoint t_proc_done = Time::now();
 
@@ -122,13 +118,13 @@ int main(int argc, char *argv[])
         cv::applyColorMap(frameSelectiveRetina, cv_cm_selective, cv::COLORMAP_JET);
 
         //Discrete window
-        HostBitArray2D discreteArray;
-        gpuSparseArray.upload(discreteArray);
-        cv::Mat cv_discrete(discreteArray.bytesHeight(),discreteArray.bytesWidth(),CV_8UC1,discreteArray.data());
+        ///HostBitArray2D discreteArray;
+        ///gpuSparseArray.upload(discreteArray);
+        ///cv::Mat cv_discrete(discreteArray.bytesHeight(),discreteArray.bytesWidth(),CV_8UC1,discreteArray.data());
 
-        HostBitArray2D discreteSelectiveArray;
-        gpuSparseDirectionSelectiveArray.upload(discreteSelectiveArray);
-        cv::Mat cv_discrete_selective(discreteSelectiveArray.bytesHeight(),discreteSelectiveArray.bytesWidth(),CV_8UC1,discreteSelectiveArray.data());
+        ///HostBitArray2D discreteSelectiveArray;
+        ///gpuSparseDirectionSelectiveArray.upload(discreteSelectiveArray);
+        ///cv::Mat cv_discrete_selective(discreteSelectiveArray.bytesHeight(),discreteSelectiveArray.bytesWidth(),CV_8UC1,discreteSelectiveArray.data());
 
 
         ///cv::Mat frameDiscrete(gpudiscreteGCArray.rows,gpudiscreteGCArray.cols,CV_8UC1);
@@ -142,8 +138,8 @@ int main(int argc, char *argv[])
         cv::imshow("MyVideo directional", cv_cm_selective);
         cv::imshow("Cones output",frameConeRetina);
 
-        cv::imshow("Sparse output",cv_discrete);
-        cv::imshow("Sparse selective output",cv_discrete_selective);
+        //cv::imshow("Sparse output",cv_discrete);
+        //cv::imshow("Sparse selective output",cv_discrete_selective);
 
         ///cv::imshow("discrete output",frameDiscrete);
 
@@ -165,5 +161,5 @@ int main(int argc, char *argv[])
 
     }
 
-    return 42;
+    return 0;
 }

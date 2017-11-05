@@ -87,7 +87,7 @@ bool GpuBitArray::resize(size_t size){
 }
 
 
-bool GpuBitArray::dowload(HostBitArray& array, cudaStream_t stream){
+bool GpuBitArray::dowload(HostBitArray& array){
 
     //Resize if needed
     assert(resize(array.size()));
@@ -103,7 +103,7 @@ bool GpuBitArray::dowload(HostBitArray& array, cudaStream_t stream){
     return true;
 }
 
-bool GpuBitArray::upload(HostBitArray& array, cudaStream_t stream){
+bool GpuBitArray::upload(HostBitArray& array){
 
     //array.resize(this->size());
     array.resize(this->size());
