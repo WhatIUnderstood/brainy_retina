@@ -9,7 +9,7 @@
 #include "Cuda/retinastructs.h"
 //#include <cuda.h>
 //#include <builtin_types.h>
-
+#include <random>
 #include "Cuda/cuda_arrays.h"
 
 class RetinaCuda
@@ -50,9 +50,28 @@ public:
     RetinaCuda(int gpu = 0);
     ~RetinaCuda();
     void initRetina(Parameters param);
+
+    ///
+    /// \brief applyPhotoreceptorSampling
+    /// \param imgSrc
+    /// \param imgDst
+    ///
     void applyPhotoreceptorSampling(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
-    void applyMultiConvolve(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
-    void applySelectiveGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cv::cuda::GpuMat &prevImage);
+
+    ///
+    /// \brief
+    /// \param imgSrc
+    /// \param imgDst
+    ///
+    void applyParvoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
+
+    ///
+    /// \brief
+    /// \param imgSrc
+    /// \param imgDst
+    /// \param prevImage
+    ///
+    void applyDirectiveGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cv::cuda::GpuMat &prevImage);
 
     //
     void sparse(cv::cuda::GpuMat &imgSrc, int bits, GpuBitArray2D &output, unsigned char min_value = 0,unsigned char max_value = 255);
@@ -64,11 +83,13 @@ public:
 protected:
     virtual std::vector<Cone> initCone(int inputWidth, int inputHeight);
     virtual std::vector<Ganglionar> initGanglionarCells(int conesWidth, int conesHeight);
+    virtual std::vector<Point> initSelectiveCells();
    // virtual cv::Mat initConeSampling(int cellsArrayWidth, int cellsArrayHeight);
 
 private:
-    bool initPhotoArray(std::vector<Cone> conesArrayCPU, int conesArrayWidth, int conesArrayHeight);
-    bool initCellsArray(std::vector<Ganglionar> cellsArrayCPU, int cellsArrayWidth, int cellsArrayHeight);
+    bool initPhotoGpu(std::vector<Cone> conesArrayCPU, int conesArrayWidth, int conesArrayHeight);
+    bool initCellsGpu(std::vector<Ganglionar> cellsArrayCPU, int cellsArrayWidth, int cellsArrayHeight);
+    bool initDirectiveGpu(std::vector<Point> photoSrc, std::vector<Point> photoDst);
 
     /// Generation functions ///
     double setRandomSeed(int val);
@@ -161,12 +182,20 @@ private:
 
     Cone * gpuCones;
     Ganglionar * gpuCells;
+    Point * d_magnoMappingSrc;
+    Point * d_magnoMappingDst;
+    int directive_width;
+    int directive_height;
+    int magnoMappingSize;
     cv::cuda::GpuMat gpuChannelSampling;
+    std::vector<Point> magnoMappingSrc;
+    std::vector<Point> magnoMappingDst;
     int cellsArrayWidth;
     int cellsArrayHeight;
     int conesArrayWidth;
     int conesArrayHeight;
     Parameters parameters;
+    std::vector<int> coneMarge;
     //std::shared_ptr<void *> cuda_stream_ptr;
 
     std::mt19937 mt_rand;

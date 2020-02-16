@@ -75,6 +75,7 @@ void RetinaCuda::initRetina(Parameters param)
     parameters = param;
     initCone(param.input_width, param.input_height);
     initGanglionarCells(conesArrayWidth,conesArrayHeight);
+    initSelectiveCells();
 }
 
 std::vector<Ganglionar> RetinaCuda::initGanglionarCells(int conesWidth, int conesHeight)
@@ -155,9 +156,47 @@ std::vector<Ganglionar> RetinaCuda::initGanglionarCells(int conesWidth, int cone
     }
 
     cv::imshow("Cells",mat);
-    initCellsArray(cellsCPU,cellsArrayWidth,cellsArrayHeight);
+    initCellsGpu(cellsCPU,cellsArrayWidth,cellsArrayHeight);
     //free(cellsArrayGPU);
     return cellsCPU;
+}
+
+std::vector<Point> RetinaCuda::initSelectiveCells()
+{
+    magnoMappingSrc.clear();
+    magnoMappingDst.clear();
+    int x = 0;
+    int y = 0;
+    int max_x = 0;
+    for(unsigned int h=0; h< conesArrayHeight; h+=2){
+        x = 0;
+        for(unsigned int w=0; w< conesArrayWidth; w+=2){
+            magnoMappingSrc.push_back(Point(w,h));
+            magnoMappingDst.push_back(Point(x,y));
+            if(x>max_x){
+                max_x = x;
+            }
+            x++;
+
+//            if(w >= coneMarge.at(h) && w <= conesArrayWidth-coneMarge.at(h)){
+//                if(sqrt((float)((h-conesArrayHeight/2.0)*(h-conesArrayHeight/2.0)+(w-conesArrayWidth/2.0)*(w-conesArrayWidth/2.0))) > parameters.ph_fovea_radius){
+
+//                    magnoMappingSrc.push_back(Point(w,h));
+//                    magnoMappingDst.push_back(Point(x,h));
+//                    if(x>max_x){
+//                        max_x = x;
+//                    }
+//                    x++;
+//                }
+//            }
+        }
+        y++;
+    }
+    directive_width = max_x;
+    directive_height = y-1;
+    initDirectiveGpu(magnoMappingSrc,magnoMappingDst);
+
+    return magnoMappingSrc;
 }
 
 std::vector<Cone> RetinaCuda::initCone(int inputWidth, int inputHeight)
@@ -202,9 +241,12 @@ std::vector<Cone> RetinaCuda::initCone(int inputWidth, int inputHeight)
 
     cv::Mat mat(coneWidth,coneWidth,CV_8UC3,cv::Vec3b(255,255,255));
 
+
+
     //Default model
     setRandomSeed(parameters.random_seed);
     for(int j=0; j<coneHeight;j++){
+        bool beginLine = false;
         for(int i=0; i<coneWidth;i++){
             //int linearReduction = 6;
             r = sqrt((coneWidth/2.0-i)*(coneWidth/2.0-i)+(coneHeight/2.0-j)*(coneHeight/2.0-j));
@@ -217,7 +259,10 @@ std::vector<Cone> RetinaCuda::initCone(int inputWidth, int inputHeight)
                     src_pos.x < 0 || src_pos.y < 0){
                 cone.type = -1;
             }else{
-
+                if(!beginLine){
+                    beginLine = true;
+                    coneMarge.push_back(i);
+                }
                 cone.center_x = src_pos.x;
                 cone.center_y = src_pos.y;
                 cone.type = ((int)(getRandom() * 4.0)) % 3;
@@ -241,7 +286,7 @@ std::vector<Cone> RetinaCuda::initCone(int inputWidth, int inputHeight)
     }
 
     cv::imshow("PhotoSampling",mat);
-    initPhotoArray(conesCPU,coneWidth,coneHeight);
+    initPhotoGpu(conesCPU,coneWidth,coneHeight);
     //free(cellsArrayGPU);
     return conesCPU;
 }
@@ -266,10 +311,10 @@ void RetinaCuda::applyPhotoreceptorSampling(cv::cuda::GpuMat &imgSrc, cv::cuda::
     }else{
         std::cerr<<"Not implemented"<<std::endl;
     }
-std::cout<<"applyPhotoreceptorSampling end"<<std::endl;
+    std::cout<<"applyPhotoreceptorSampling end"<<std::endl;
 }
 
-bool RetinaCuda::initCellsArray(std::vector<Ganglionar> cellsArrayCPU, int cellsArrayWidth, int cellsArrayHeight)
+bool RetinaCuda::initCellsGpu(std::vector<Ganglionar> cellsArrayCPU, int cellsArrayWidth, int cellsArrayHeight)
 {
     if(cudaMalloc((void **) &gpuCells, sizeof(Ganglionar)*cellsArrayCPU.size()) != cudaError_t::cudaSuccess){
         return false;
@@ -283,12 +328,30 @@ bool RetinaCuda::initCellsArray(std::vector<Ganglionar> cellsArrayCPU, int cells
     return true;
 }
 
+bool RetinaCuda::initDirectiveGpu(std::vector<Point> photoSrc, std::vector<Point> photoDst)
+{
+    if(cudaMalloc((void **) &d_magnoMappingSrc, sizeof(Point)*photoSrc.size()) != cudaError_t::cudaSuccess){
+        return false;
+    }
+    cudaMemcpy(d_magnoMappingSrc,photoSrc.data(),sizeof(Point)*photoSrc.size(),cudaMemcpyHostToDevice);
+
+    if(cudaMalloc((void **) &d_magnoMappingDst, sizeof(Point)*photoDst.size()) != cudaError_t::cudaSuccess){
+        return false;
+    }
+    cudaMemcpy(d_magnoMappingDst,photoDst.data(),sizeof(Point)*photoDst.size(),cudaMemcpyHostToDevice);
+
+
+    this->magnoMappingSize = photoSrc.size();
+
+    return true;
+}
+
 double RetinaCuda::setRandomSeed(int val)
 {
     mt_rand.seed(val);
 }
 
-bool RetinaCuda::initPhotoArray(std::vector<Cone> conesArrayCPU, int conesArrayWidth, int conesArrayHeight)
+bool RetinaCuda::initPhotoGpu(std::vector<Cone> conesArrayCPU, int conesArrayWidth, int conesArrayHeight)
 {
     if(cudaMalloc((void **) &gpuCones, sizeof(Cone)*conesArrayCPU.size()) != cudaError_t::cudaSuccess){
         return false;
@@ -310,7 +373,7 @@ double RetinaCuda::getRandom()
     return mt_rand() / ((double)(std::mt19937::max()));
 }
 
-void RetinaCuda::applyMultiConvolve(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst)
+void RetinaCuda::applyParvoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst)
 {
     //imgDst
     imgDst.create(cellsArrayHeight,cellsArrayWidth,CV_8UC1);
@@ -323,12 +386,13 @@ void RetinaCuda::applyMultiConvolve(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &
     }
 }
 
-void RetinaCuda::applySelectiveGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cv::cuda::GpuMat &prevImage)
+void RetinaCuda::applyDirectiveGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cv::cuda::GpuMat &prevImage)
 {
     //imgDst
-    imgDst.create(conesArrayHeight,conesArrayWidth,CV_8UC1);
+    imgDst.create(directive_height,directive_width,CV_8UC1);
+    imgDst.setTo(0);
     //qDebug()<<"SIZES:"<<imgSrc.cols<<imgSrc.rows<<imgDst.cols<<imgDst.rows;
-    gpu::directionSelectiveComputation(imgSrc,imgDst,prevImage,cudaStreamDefault);
+    gpu::directionSelectiveComputation(imgSrc,imgDst,prevImage,d_magnoMappingSrc,d_magnoMappingDst,magnoMappingSize,cudaStreamDefault);
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess){
         std::cerr<<"Error: "<< cudaGetErrorString(err)<<" (you may have incorrect arch in cmake)"<<std::endl;

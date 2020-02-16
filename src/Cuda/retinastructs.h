@@ -22,6 +22,12 @@ struct Cone{
 
 };
 
+struct Point{
+    Point(int x, int y):x(x),y(y){}
+    int x;
+    int y;
+};
+
 
 
 #endif // RETINA_STRUCTS_H

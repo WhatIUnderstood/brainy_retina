@@ -179,15 +179,27 @@ __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda
 
 }
 
-__global__ void directionSelectiveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, cv::cuda::PtrStepSz<u_char> imgPrev){
+__global__ void directionSelectiveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, cv::cuda::PtrStepSz<u_char> imgPrev, Point* directiveMappingSrc, Point* directiveMappingDst, int size){
     // Get our global thread ID
-    int xdst = blockIdx.x*blockDim.x +threadIdx.x;
-    int ydst = blockIdx.y*blockDim.y+threadIdx.y;
+    //int xdst = blockIdx.x*blockDim.x +threadIdx.x;
+    //int ydst = blockIdx.y*blockDim.y+threadIdx.y;
+
+    // Get our global thread ID
+    int id = blockIdx.x*blockDim.x +threadIdx.x;
+
+    if(id >= size){
+        return;
+    }
+    Point pointSrc = directiveMappingSrc[id];//%(cellsArrayWidth*cellsArrayHeight)/*(xdst+ydst*cellsArrayWidth)%(cellsArrayWidth*cellsArrayHeight)*/];
+    Point pointDst = directiveMappingDst[id];
+    int xdst = pointSrc.x;
+    int ydst = pointSrc.y;
 
     int nbcols = imgSrc.cols;
     int nbrows = imgSrc.rows;
 
-    int type = xdst%4;
+
+    int type = xdst%4; // There are 4 types, to top, left right bottom
 
     int response = 0;
     int delta = 0;
@@ -213,7 +225,8 @@ __global__ void directionSelectiveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv:
     }
 
     //if(xdst<imgDst.cols && ydst < imgDst.rows)
-        imgDst(ydst,xdst)= response;//*6;
+    //imgDst(xdst,ydst)= response;//*6;
+        imgDst(pointDst.y,pointDst.x)= response;//*6;
 
 
 }
@@ -351,6 +364,25 @@ void photoreceptorSampling(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrStep
 
 }
 
+//void cropCenterAndRemap(cv::cuda::PtrStepSz<uchar> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, int radiusToRemove, cudaStream_t stream)
+//{
+//    //int blockSize, gridSize;
+//    dim3 grid, block;
+
+//    // Number of threads in each thread block
+////    blockSize = 960;
+//    block.x = 16;
+//    block.y = 16;
+
+//    // Number of thread blocks in grid
+//    //gridSize = (int)ceil((float)(imgDst.cols*imgDst.rows)/blockSize);
+//    grid.x = (int)ceil((float)(imgDst.cols)/block.x);
+//    grid.y = (int)ceil((float)(imgDst.rows)/block.y);
+////__global__ void photoreceptorSamplingKernel1C(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Cone* conesArray, int conesArrayWidth, int /*conesArrayHeight*/)
+//    sphotoreceptorSamplingKernel1C<<<grid, block>>>(imgSrc, imgDst, coneArrayGPU, conesWidth,conesHeight);
+
+//}
+
 void multiConvolve(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Ganglionar* cellsArrayGPU, int cellsArrayWidth, int cellsArrayHeight,cudaStream_t stream){
 
 
@@ -371,23 +403,26 @@ void multiConvolve(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_cha
 
 }
 
-void directionSelectiveComputation(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, cv::cuda::PtrStepSz<u_char> imgPrev,cudaStream_t stream){
+void directionSelectiveComputation(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, cv::cuda::PtrStepSz<u_char> imgPrev,Point* directiveMappingSrc,Point* directiveMappingDst, int directiveMappingSize, cudaStream_t stream){
 
 
     //int blockSize, gridSize;
     dim3 grid, block;
 
+
     // Number of threads in each thread block
-//    blockSize = 960;
-    block.x = 16;
-    block.y = 16;
+    block.x = 256;
+    //block.x = 16;
+    //block.y = 16;
 
     // Number of thread blocks in grid
     //gridSize = (int)ceil((float)(imgDst.cols*imgDst.rows)/blockSize);
-    grid.x = (int)ceil((float)(imgDst.cols)/block.x);
-    grid.y = (int)ceil((float)(imgDst.rows)/block.y);
+    //grid.x = (int)ceil((float)(imgDst.cols)/block.x);
+    //grid.y = (int)ceil((float)(imgDst.rows)/block.y);
 
-    directionSelectiveKernel<<<grid, block>>>(imgSrc, imgDst, imgPrev);
+
+    grid.x = (int)ceil((float)(directiveMappingSize)/(float)block.x);
+    directionSelectiveKernel<<<grid, block>>>(imgSrc, imgDst, imgPrev,directiveMappingSrc,directiveMappingDst,directiveMappingSize);
 
 }
 

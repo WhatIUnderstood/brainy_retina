@@ -19,7 +19,7 @@ void channelSampling(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrStepSz<u_c
 void photoreceptorSampling(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Cone* coneArrayGPU, int conesWidth, int conesHeight ,cudaStream_t stream);
 void photoreceptorSampling1C(cv::cuda::PtrStepSz<uchar> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Cone* coneArrayGPU, int conesWidth, int conesHeight ,cudaStream_t stream);
 void multiConvolve(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Ganglionar* cellsArrayGPU, int cellsArrayWidth, int cellsArrayHeight,cudaStream_t stream);
-void directionSelectiveComputation(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, cv::cuda::PtrStepSz<u_char> imgPrev,cudaStream_t stream);
+void directionSelectiveComputation(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, cv::cuda::PtrStepSz<u_char> imgPrev,Point* directiveMappingSrc, Point* directiveMappingDst, int directiveMappingSize, cudaStream_t stream);
 
 void sparse(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, GpuBitArray2D &imgDst, unsigned char minval, unsigned char maxVal, cudaStream_t stream);
 

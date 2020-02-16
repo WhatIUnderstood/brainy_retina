@@ -89,8 +89,8 @@ int main(int argc, char *argv[])
 
         TimePoint t_proc = Time::now();
         retina.applyPhotoreceptorSampling(gpuMatSrc,gpuMatCones);
-        retina.applyMultiConvolve(gpuMatCones,gpuMatDst);
-        retina.applySelectiveGC(gpuMatCones,gpuMatDirectionSelectiveOuput,gpuMatPrev);
+        retina.applyParvoGC(gpuMatCones,gpuMatDst);
+        retina.applyDirectiveGC(gpuMatCones,gpuMatDirectionSelectiveOuput,gpuMatPrev);
         ///retina.sparse(gpuMatDst,16,gpuSparseArray);
         ///retina.sparse(gpuMatDirectionSelectiveOuput,8,gpuSparseDirectionSelectiveArray,0,64);
 
@@ -133,9 +133,9 @@ int main(int argc, char *argv[])
 
         //gpuMatSrc.download(frameRetina);
         std::cout<<"frameRetina "<<frameRetina.cols<<frameRetina.rows<<std::endl;
-        cv::imshow("MyVideo retina", cv_cm_img0); //show the frame in "MyVideo" window
+        cv::imshow("MyVideo retina "+std::to_string(cv_cm_img0.cols)+"x"+std::to_string(cv_cm_img0.rows), cv_cm_img0); //show the frame in "MyVideo" window
         cv::imshow("MyVideo input", frame);
-        cv::imshow("MyVideo directional", cv_cm_selective);
+        cv::imshow("MyVideo directional"+std::to_string(cv_cm_selective.cols)+"x"+std::to_string(cv_cm_selective.rows), cv_cm_selective);
         cv::imshow("Cones output",frameConeRetina);
 
         //cv::imshow("Sparse output",cv_discrete);
