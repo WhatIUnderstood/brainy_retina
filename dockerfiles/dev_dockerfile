@@ -1,0 +1,44 @@
+FROM nvidia/cuda:10.0-devel
+
+WORKDIR /opt/devel
+
+# Must have packages to dev
+RUN apt update && apt install -y cmake wget unzip sudo gdb
+
+### x264 v4l-utils apt install libcanberra-gtk-module
+
+# Install opencv with cuda support
+RUN apt install -y libz-dev libglib2.0-dev libjpeg-dev libpng-dev libtiff-dev ffmpeg libavutil-dev libavcodec-dev libavformat-dev libswscale-dev libgtk2.0-dev
+RUN mkdir /opt/opencv/
+RUN cd /opt/opencv/ \
+    && wget https://github.com/opencv/opencv_contrib/archive/3.4.9.zip \
+    && unzip 3.4.9.zip \
+    && rm 3.4.9.zip
+
+RUN cd /opt/opencv \
+    && wget https://github.com/opencv/opencv/archive/3.4.9.zip \
+    && unzip 3.4.9.zip \
+    && cd opencv-3.4.9 \
+    && mkdir build \
+    && cd build \
+    && cmake .. -DBUILD_LIST=highgui,core,cudev,videoio -DWITH_CUDA=ON -DBUILD_TESTS=OFF -DOPENCV_EXTRA_MODULES_PATH=../../opencv_contrib-3.4.9/modules \
+    -DWITH_JASPER=OFF -DWITH_GSTREAMER=OFF -DWITH_IMGCODEC_SUNRASTER=OFF -DWITHTIFF=OFF -DWITHV4L=OFF -DWITH_WEBP=OFF -DBUILD_opencv_photo=OFF -DBUILD_opencv_xphoto=OFF \
+    -DWITH_FFMEG=ON \
+    && make -j8 \
+    && make install \
+    && cd ../.. \
+    && rm 3.4.9.zip
+
+
+# Set root password inside docker in order to install new package for dev
+RUN echo "root:root"| chpasswd
+
+RUN useradd developer
+RUN usermod -a -G video developer
+
+USER developer
+
+
+
+
+
