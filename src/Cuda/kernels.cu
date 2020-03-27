@@ -4,10 +4,10 @@
 #include <cuda_runtime.h>
 #include <unistd.h>
 
-#include "device_functions.h"
+#include "cuda_runtime_api.h"
 #include "cuda_retina_kernels.cuh"
 
-#include <opencv/cv.h>
+//#include <opencv/cv.h>
 
 namespace gpu{
 /// Kernels ///
@@ -85,7 +85,7 @@ __global__ void photoreceptorSamplingKernel1C(cv::cuda::PtrStepSz<u_char> imgSrc
 
     Cone cone = conesArray[(xdst+ydst*conesArrayWidth)];//%(cellsArrayWidth*cellsArrayHeight)/*(xdst+ydst*cellsArrayWidth)%(cellsArrayWidth*cellsArrayHeight)*/];
 
-    if(cone.type <0){
+    if(cone.type == PHOTO_TYPE::NONE){
         return;
     }
     int x = cone.center_x;
@@ -94,6 +94,36 @@ __global__ void photoreceptorSamplingKernel1C(cv::cuda::PtrStepSz<u_char> imgSrc
 //    if(xdst<imgDst.cols && ydst < imgDst.rows)
     imgDst(ydst,xdst) = imgSrc(y,x);
 
+}
+
+__global__ void photoreceptorSamplingKernel3C(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Cone* conesArray, int conesArrayWidth, int /*conesArrayHeight*/){
+    // Get our global thread ID
+    int xdst = blockIdx.x*blockDim.x +threadIdx.x;
+    int ydst = blockIdx.y*blockDim.y+threadIdx.y;
+
+    Cone cone = conesArray[(xdst+ydst*conesArrayWidth)];//%(cellsArrayWidth*cellsArrayHeight)/*(xdst+ydst*cellsArrayWidth)%(cellsArrayWidth*cellsArrayHeight)*/];
+
+    if(cone.type == PHOTO_TYPE::NONE){
+        return;
+    }
+    int x = cone.center_x;
+    int y = cone.center_y;
+
+    uchar3 pixel = imgSrc(y,x);
+
+    switch (cone.type) {
+        case PHOTO_TYPE::S_CONE :
+            imgDst(ydst,xdst) = pixel.x;
+            break;
+        case PHOTO_TYPE::M_CONE:
+            imgDst(ydst,xdst) = pixel.y;
+            break;
+        case PHOTO_TYPE::L_CONE:
+            imgDst(ydst,xdst) = pixel.z;
+            break;
+        default:
+            break;
+    }
 }
 
 __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Ganglionar* cellsArray, int cellsArrayWidth, int cellsArrayHeight){
@@ -332,7 +362,6 @@ void photoreceptorSampling1C(cv::cuda::PtrStepSz<uchar> imgSrc, cv::cuda::PtrSte
     dim3 grid, block;
 
     // Number of threads in each thread block
-//    blockSize = 960;
     block.x = 16;
     block.y = 16;
 
@@ -344,6 +373,22 @@ void photoreceptorSampling1C(cv::cuda::PtrStepSz<uchar> imgSrc, cv::cuda::PtrSte
     photoreceptorSamplingKernel1C<<<grid, block>>>(imgSrc, imgDst, coneArrayGPU, conesWidth,conesHeight);
 
 }
+
+void photoreceptorSampling3C(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Cone* coneArrayGPU, int conesWidth, int conesHeight ,cudaStream_t stream)
+{
+    //int blockSize, gridSize;
+    dim3 grid, block;
+
+    // Number of threads in each thread block
+    block.x = 16;
+    block.y = 16;
+
+    grid.x = (int)ceil((float)(imgDst.cols)/block.x);
+    grid.y = (int)ceil((float)(imgDst.rows)/block.y);
+    photoreceptorSamplingKernel3C<<<grid, block>>>(imgSrc, imgDst, coneArrayGPU, conesWidth,conesHeight);
+}
+
+
 
 void photoreceptorSampling(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Cone* coneArrayGPU, int conesWidth, int conesHeight ,cudaStream_t stream)
 {

@@ -5,7 +5,7 @@
 #include <iostream>
 #include <assert.h>
 
-#include "device_functions.h"
+#include "cuda_runtime_api.h"
 #include "cuda_arrays.h"
 #include "Utils/logger.h"
 

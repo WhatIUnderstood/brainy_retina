@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 2.8.11)
-project (CudaRetina)
+project (CudaRetina LANGUAGES CUDA CXX)
 
 set(CudaRetina_MAJOR_VERSION 0)
 set(CudaRetina_MINOR_VERSION 1)
@@ -36,17 +36,9 @@ set(INSTALL_CMAKE_DIR ${CMAKE_INSTALL_PREFIX}/${DEF_INSTALL_CMAKE_DIR})
 
 ### Build the library ###
 
-## Setup c++11
-include(CheckCXXCompilerFlag)
-CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
-CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
-if(COMPILER_SUPPORTS_CXX11)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 ")
-elseif(COMPILER_SUPPORTS_CXX0X)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x ")
-else()
-    message(STATUS "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
-endif()
+## Setup c++14
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Setup shared library flags
 set (CMAKE_POSITION_INDEPENDENT_CODE TRUE)#FPIC
@@ -60,7 +52,7 @@ file(GLOB_RECURSE SRCS src/*.cpp)
 file(GLOB_RECURSE CUDA_SRCS src/*.cu)
 
 ## Pass options to NVCC (cuda compiler)
-set( CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -Xcompiler  -lineinfo -arch=sm_60 -gencode=arch=compute_20,code=sm_20 -gencode=arch=compute_30,code=sm_30 -gencode  arch=compute_61,code=sm_61) #-gencode  arch=compute_61,code=sm_61 -rdynamic
+set( CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -Xcompiler  -lineinfo -gencode=arch=compute_30,code=sm_30 -gencode=arch=compute_61,code=sm_61)
 #set( CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS} -Xcompiler  -lineinfo -gencode  arch=compute_61,code=sm_61) #-gencode  arch=compute_61,code=sm_61 -rdynamic
 #set( CUDA_NVCC_FLAGS ${CUDA_NVCC_FLAGS}; -O3 -gencode arch=compute_20,code=sm_21)
 
@@ -82,7 +74,6 @@ TARGET_LINK_LIBRARIES(gpuretina ${CUDA_LIBRARIES} ${OpenCV_LIBRARIES})
 MACRO(INSTALL_HEADERS_WITH_DIRECTORY HEADER_LIST ROOT_PREFIX INCLUDE_INSTALL_PATH)
 if( NOT "${ROOT_PREFIX}" STREQUAL "")
     string(REPLACE "/" "\\/" ROOT_EXTRA ${ROOT_PREFIX})
-    message( FATAL "plop${ROOT_EXTRA}")
 endif()
     FOREACH(HEADER ${${HEADER_LIST}})
         #STRING(REGEX MATCH "${ROOT_EXTRA}(.*)\\/" DIR ${HEADER}) #STRING(REGEX MATCH "(.\\*)\\[/\\]" DIR ${HEADER})
@@ -120,9 +111,8 @@ set(OPENCV_CMAKE_PATH /opt/opencv/3.2.0/ )
 
 set(OPENCV_ROOT_DIR /opt/opencv/3.2.0)
 
-include_directories(gpuretina PUBLIC src/)
-
 cuda_add_executable(gpuretina_test ${CUDA_SRCS} ${SRCS} tests/opencv/main.cpp)
+target_include_directories(gpuretina_test PUBLIC src/ third_party/CLI11/include)
 TARGET_LINK_LIBRARIES(gpuretina_test ${CUDA_LIBRARIES} ${OpenCV_LIBRARIES})
 
 
@@ -137,12 +127,12 @@ add_custom_target(headers SOURCES ${ALL_HEADERS_H} ${ALL_HEADERS_CUH})
 
 ##### Export ####
 # Add all targets to the build-tree export set
-export(TARGETS gpuretina
-  FILE "${PROJECT_BINARY_DIR}/gpuretinaTargets.cmake")
+#export(TARGETS gpuretina
+#  FILE "${PROJECT_BINARY_DIR}/gpuretinaTargets.cmake")
 
 # Export the package for use from the build-tree
 # (this registers the build-tree with a global CMake-registry)
-export(PACKAGE gpuretina)
+#export(PACKAGE gpuretina)
 
 #change variable to be absolute
 
