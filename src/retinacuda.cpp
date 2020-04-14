@@ -10,7 +10,18 @@
 #include "cuda_runtime.h"
 #include "Cuda/cuda_retina_kernels.cuh"
 
+#include "data/data.h"
+#include "Utils/interp_utils.h"
+
 #include <iostream>
+
+#include "simulations/ConeModel.h"
+#include "simulations/PixelConeModel.h"
+
+#ifdef WITH_MATPLOTLIB
+#include "matplotlib_cpp/matplotlibcpp.h"
+namespace plt = matplotlibcpp;
+#endif
 
 //Human mgc
 float excentricity(float r)
@@ -93,6 +104,9 @@ void RetinaCuda::initRetina(Parameters param)
     pixel_per_cone_ramp_.transitional_start = param.ph_fovea_radius;
     pixel_per_cone_ramp_.transitional_end = param.ph_max_pixels_by_cone_radius;
 
+    cone_model_ptr_ = std::make_unique<ConeModel>(parameters.ph_config);
+    photo_sim_ptr_ = std::make_unique<PixelConeModel>(parameters.pix_config, *cone_model_ptr_);
+
     //parasol_gc_ramp_;
     initCone(param.input_width, param.input_height);
     initGanglionarCells(cones_cpu_.width, cones_cpu_.height);
@@ -103,52 +117,111 @@ std::vector<Ganglionar> RetinaCuda::initGanglionarCells(int conesWidth, int cone
 {
     std::vector<Ganglionar> cellsCPU;
 
-    //Findout cellWidth and cellHeight
+    MGCellsSim::MGCellsConfig config;
+    config.a = 0.9729;
+    config.r2 = 1.084;
+    config.re = 7.633;
+    config.rm = 41.03;
+    config.max_cone_density = 14804;
+    MGCellsSim midgetGCells(config);
+
+    std::cout << "midget cells model radius: " << midgetGCells.getTotalRadius() << " cells" << std::endl;
+    std::cout << "midget cells model max eccentricity: " << midgetGCells.getMaxEccentricity() << " °" << std::endl;
+
+    // for (unsigned int i = 0; i < midgetGCells.getTotalRadius(); i++)
+    // {
+
+    //     std::cout << "midget i: " << i << " angle: " << midgetGCells.getMidgetCellAngularPose(i)
+    //               << " cone index:" << cone_model_ptr_->getConeIndex(midgetGCells.getMidgetCellAngularPose(i))
+    //               << " cone angle:" << cone_model_ptr_->getConeAngularPose(cone_model_ptr_->getConeIndex(midgetGCells.getMidgetCellAngularPose(i)))
+    //               << std::endl;
+    //     if (i > 1500)
+    //     {
+    //         break;
+    //     }
+    // }
+
+    //Findout cellWidth and cellHeight that fit Pixcone layer
     int cellsWidth = -1;
     int cellsHeight = -1;
 
     //Get GC width
-    for (int r = 0; r < INT_MAX / 2 && cellsWidth < 0; r++)
+    for (int r = 0; r < midgetGCells.getTotalRadius() && cellsWidth < 0; r++)
     {
         cv::Vec2f direction(1, 0);
-        cv::Point src_pos = getPosition(mgc_position_mapping(r), cv::Size(conesWidth, conesHeight), direction);
-        if (src_pos.x >= conesWidth || src_pos.y >= conesHeight ||
-            src_pos.x < 0 || src_pos.y < 0)
+
+        //double mgcell_ecc = midgetGCells.getMidgetCellAngularPose(r);
+        auto ganglionar_cell_central_cone_index = photo_sim_ptr_->getConeIndex(midgetGCells.getMidgetCellAngularPose(r));
+        //cv::Point src_pos = getPosition(ganglionar_cell_central_cone_index, cv::Size(conesWidth, conesHeight), direction);
+        //cv::Point src_pos = getPosition(mgc_position_mapping(r), cv::Size(conesWidth, conesHeight), direction);
+        //if (mgcell_ecc > photo_sim_ptr_->getMaxEccentricity())
+        if (ganglionar_cell_central_cone_index > conesWidth / 2)
         {
             cellsWidth = (r - 1) * 2;
-            cellsWidth = cellsWidth - cellsWidth % 16;
+            cellsWidth = cellsWidth - cellsWidth % BLOCK_SIZE;
+        }
+        else if (r == midgetGCells.getTotalRadius() - 1)
+        {
+            cellsWidth = midgetGCells.getTotalRadius() / 2;
+            cellsWidth = cellsWidth - cellsWidth % BLOCK_SIZE;
         }
     }
+
     //Get cone height
-    for (int r = 0; r < INT_MAX / 2 && cellsHeight < 0; r++)
+    for (int r = 0; r < midgetGCells.getTotalRadius() && cellsHeight < 0; r++)
     {
-        cv::Vec2f direction(0, 1);
-        cv::Point src_pos = getPosition(mgc_position_mapping(r), cv::Size(conesWidth, conesHeight), direction);
-        if (src_pos.x >= conesWidth || src_pos.y >= conesHeight ||
-            src_pos.x < 0 || src_pos.y < 0)
+        auto ganglionar_cell_central_cone_index = photo_sim_ptr_->getConeIndex(midgetGCells.getMidgetCellAngularPose(r));
+        //cv::Vec2f direction(0, 1);
+        //cv::Point src_pos = getPosition(ganglionar_cell_central_cone_index, cv::Size(conesWidth, conesHeight), direction);
+        //cv::Point src_pos = getPosition(mgc_position_mapping(r), cv::Size(conesWidth, conesHeight), direction);
+        // if (src_pos.x >= conesWidth || src_pos.y >= conesHeight ||
+        //     src_pos.x < 0 || src_pos.y < 0 || ganglionar_cell_central_cone_index < 0)
+        // {
+        //     cellsHeight = (r - 1) * 2;
+        //     cellsHeight = cellsHeight - cellsHeight % BLOCK_SIZE;
+        // }
+        //double mgcell_ecc = midgetGCells.getMidgetCellAngularPose(r);
+        //cv::Point src_pos = getPosition(ganglionar_cell_central_cone_index, cv::Size(conesWidth, conesHeight), direction);
+        //cv::Point src_pos = getPosition(mgc_position_mapping(r), cv::Size(conesWidth, conesHeight), direction);
+        if (ganglionar_cell_central_cone_index > conesHeight / 2)
+        //if (mgcell_ecc > photo_sim_ptr_->getMaxVEccentricity())
         {
             cellsHeight = (r - 1) * 2;
-            cellsHeight = cellsHeight - cellsHeight % 16;
+            cellsHeight = cellsHeight - cellsHeight % BLOCK_SIZE;
+        }
+        else if (r == midgetGCells.getTotalRadius() - 1)
+        {
+            cellsHeight = midgetGCells.getTotalRadius() / 2;
+            cellsHeight = cellsHeight - cellsHeight % BLOCK_SIZE;
         }
     }
 
     if (cellsHeight <= 0 || cellsWidth <= 0)
     {
         std::cerr << "Parameter implies empty cone array" << std::endl;
-        return cellsCPU;
+        throw std::invalid_argument("Parameter implies empty cone array");
     }
 
-    cellsArrayHeight = cellsHeight;
+    cellsArrayHeight = cellsHeight; // - BLOCK_SIZE * 38;
     cellsArrayWidth = cellsWidth;
+
+    std::cout << "Pix midget cells radius: " << cellsWidth / 2 << " cells" << std::endl;
+    std::cout << "Pix midget cells max eccentricity: " << midgetGCells.getMidgetCellAngularPose(cellsWidth / 2) << " °" << std::endl;
+
+    std::cout << "midget dimensions: " << cellsArrayWidth << " x " << cellsArrayHeight << std::endl; //" midgetGCells.getTotalRadius()
 
     cellsCPU.resize(cellsArrayWidth * cellsArrayHeight);
 
     Ganglionar cell;
     double r;
+    double r_next;
     double ganglionarExternalRadius;
     double ganglionarInternalRadius;
 
-    cv::Mat mat(cellsArrayHeight, cellsArrayWidth, CV_8UC3, cv::Vec3b(255, 255, 255));
+    //cv::Mat mat(cellsArrayHeight, cellsArrayWidth, CV_8UC3, cv::Vec3b(255, 255, 255));
+
+    // Map containing info on the ganglionar cells properties
+    std::map<std::string, std::vector<float>> description_map;
 
     setRandomSeed(parameters.random_seed);
     //Default model
@@ -156,35 +229,121 @@ std::vector<Ganglionar> RetinaCuda::initGanglionarCells(int conesWidth, int cone
     {
         for (int i = 0; i < cellsArrayWidth; i++)
         {
+            r = getDistanceFromCenter(i, j, cellsArrayWidth, cellsArrayHeight);
+
+            r_next = r + 1.0;
+
+            const auto midget_angular_pose = midgetGCells.getMidgetCellAngularPose(r);
+            const auto next_midget_angular_pose = midgetGCells.getMidgetCellAngularPose(r_next);
+
+            const auto midget_central_cone = photo_sim_ptr_->getConeIndex(midget_angular_pose);
+            const auto next_midget_central_cone = photo_sim_ptr_->getConeIndex(next_midget_angular_pose);
+
+            //std::cout << "next_midget_angular_pose: " << next_midget_angular_pose << std::endl;
+            if (midget_angular_pose < 0 || next_midget_angular_pose < 0 || next_midget_central_cone < 0 || midget_central_cone < 0 || std::abs(midget_central_cone - next_midget_central_cone) < 0.1)
+            {
+                cell.type = GC_RESPONSE_TYPE::NONE;
+                cellsCPU[i + j * cellsArrayWidth] = cell;
+                continue;
+            }
+
             //int linearReduction = 6;
-            r = sqrt((cellsArrayWidth / 2.0 - i) * (cellsArrayWidth / 2.0 - i) + (cellsArrayHeight / 2.0 - j) * (cellsArrayHeight / 2.0 - j));
-            ganglionarExternalRadius = mgc_dentric_coverage(r);
-            std::cout << "ganglionarExternalRadius: " << ganglionarExternalRadius << " r:" << r << std::endl;
-            ganglionarInternalRadius = MAX(1.0, ganglionarExternalRadius / 2.0);
-            cv::Vec2f direction = getDirectionFromCenter(cv::Point(i, j), cv::Size(cellsArrayWidth, cellsArrayHeight));
-            cv::Point src_pos = getPosition(mgc_position_mapping(r), cv::Size(cones_cpu_.width, cones_cpu_.height), direction);
+
+            ganglionarExternalRadius = std::fabs(next_midget_central_cone - midget_central_cone); // ON and OFF are overlapping
+            // ganglionarExternalRadius = mgc_dentric_coverage(r);
+            // std::cout
+            //     << "ganglionarExternalRadius: " << ganglionarExternalRadius << " r:" << r << " midgetGCells.getMidgetCellAngularPose(r)" << midgetGCells.getMidgetCellAngularPose(r) << " midget_central_cone: " << midget_central_cone << " next_midget_central_cone:" << next_midget_central_cone << std::endl;
+            ganglionarInternalRadius = MAX(1.0, 1.0 / 3.0 * ganglionarExternalRadius);
+            cv::Vec2f direction = r == 0 ? cv::Vec2f(1, 0) : getDirectionFromCenter(cv::Point(i, j), cv::Size(cellsArrayWidth, cellsArrayHeight));
+            cv::Point src_pos = getPosition(midget_central_cone, cv::Size(cones_cpu_.width, cones_cpu_.height), direction);
+
+            //check if cone is valid
+            int cone_key = src_pos.x + src_pos.y * cones_cpu_.width;
+            if (cone_key >= cones_cpu_.cones.size() || src_pos.x < 0 || src_pos.x >= cones_cpu_.width || src_pos.y < 0 || src_pos.y >= cones_cpu_.height || cones_cpu_.cones[cone_key].type == PHOTO_TYPE::NONE)
+            {
+                cell.type = GC_RESPONSE_TYPE::NONE;
+                cellsCPU[i + j * cellsArrayWidth] = cell;
+                continue;
+            }
+
+            //cv::Point src_pos = getPosition(mgc_position_mapping(r), cv::Size(cones_cpu_.width, cones_cpu_.height), direction);
             cell.center_x = src_pos.x;
             cell.center_y = src_pos.y;
             cell.extern_radius = ganglionarExternalRadius;
             cell.intern_radius = ganglionarInternalRadius;
-            cell.type = getRandom() < 0.5 ? 0 : 1;
+            cell.type = i % 2 == 1 ? GC_RESPONSE_TYPE::ON : GC_RESPONSE_TYPE::OFF;
             cellsCPU[i + j * cellsArrayWidth] = cell;
+
             //memcpy( cellsArrayGPU + i+j*cellsArrayWidth,&cell, sizeof(cell));
             //cellsArrayGPU[i+j*cellsArrayWidth] = cell;
 
-            //Display stuff
-            if (j == cellsArrayHeight / 2)
+            if (j == cellsArrayHeight / 8)
             {
-                cv::Vec3b red = cv::Vec3b(255, 0, 0);
-                cv::Vec3b black = cv::Vec3b(0, 0, 0);
-                mat.at<cv::Vec3b>(cv::Point(i, j + ganglionarInternalRadius)) = black;
-                mat.at<cv::Vec3b>(cv::Point(i, j + ganglionarExternalRadius)) = cv::Vec3b(0, 255, 0);
-                mat.at<cv::Vec3b>(cv::Point(i, j)) = red;
+                description_map["gcm_radius_at_eighth"].push_back(next_midget_central_cone);
+                description_map["gcm_radius_at_eighth_x"].push_back(i);
+                description_map["gcm_radius_next_at_eighth"].push_back(i);
+                description_map["gcm_radius_next_at_eighth_x"].push_back(i);
+
+                description_map["gc_external_radius_at_eighth"].push_back(ganglionarExternalRadius);
+                description_map["gc_external_radius_at_eighth_x"].push_back(i);
+
+                description_map["gc_midget_angular_eighth_pose"].push_back(midget_angular_pose);
+                description_map["gc_midget_angular_eighth_pose_x"].push_back(i);
+
+                description_map["gc_midget_cone_eighth_pose"].push_back(midget_central_cone);
+                description_map["gc_midget_cone_eighth_pose_x"].push_back(i);
             }
+            else if (j == cellsArrayHeight / 2)
+            {
+                description_map["gc_external_radius_at_half"].push_back(ganglionarExternalRadius);
+                description_map["gc_external_radius_at_half_x"].push_back(i);
+
+                description_map["gc_midget_angular_half_pose"].push_back(midget_angular_pose);
+                description_map["gc_midget_angular_half_pose_x"].push_back(i);
+
+                description_map["gc_midget_cone_half_pose"].push_back(midget_central_cone);
+                description_map["gc_midget_cone_half_pose_x"].push_back(i);
+            }
+            // //Display stuff
+            // if (j == cellsArrayHeight / 2)
+            // {
+            //     cv::Vec3b red = cv::Vec3b(255, 0, 0);
+            //     cv::Vec3b black = cv::Vec3b(0, 0, 0);
+            //     mat.at<cv::Vec3b>(cv::Point(i, j + ganglionarInternalRadius)) = black;
+            //     mat.at<cv::Vec3b>(cv::Point(i, j + ganglionarExternalRadius)) = cv::Vec3b(0, 255, 0);
+            //     mat.at<cv::Vec3b>(cv::Point(i, j)) = red;
+            // }
         }
     }
 
-    cv::imshow("Cells", mat);
+#ifdef WITH_MATPLOTLIB
+    plt::figure();
+    plt::named_plot("radius 1/8th", description_map["gcm_radius_at_eighth_x"], description_map["gcm_radius_at_eighth"]);
+    //plt::named_plot("radius newt 1/8th", description_map["gcm_radius_next_at_eighth_x"], description_map["gcm_radius_next_at_eighth"]);
+    plt::title("Test");
+    plt::legend();
+
+    plt::figure();
+    plt::named_plot("GCm angular pos 1/8th", description_map["gc_midget_angular_eighth_pose_x"], description_map["gc_midget_angular_eighth_pose"]);
+    plt::named_plot("GCm angular pos 1/2th", description_map["gc_midget_angular_half_pose_x"], description_map["gc_midget_angular_half_pose"]);
+    plt::title("Ganglionar cells angular pose");
+    plt::legend();
+    //
+    plt::figure();
+    plt::named_plot("GC ext radius 1/8th", description_map["gc_external_radius_at_eighth_x"], description_map["gc_external_radius_at_eighth"]);
+    plt::named_plot("GC ext radius 1/2th", description_map["gc_external_radius_at_half_x"], description_map["gc_external_radius_at_half"]);
+    plt::title("Ganglionar cells radius");
+    plt::legend();
+
+    plt::figure();
+    plt::named_plot("GCm cone center 1/8th", description_map["gc_midget_cone_eighth_pose_x"], description_map["gc_midget_cone_eighth_pose"]);
+    plt::named_plot("GCm cone center 1/2th", description_map["gc_midget_cone_half_pose_x"], description_map["gc_midget_cone_half_pose"]);
+    plt::title("Ganglionar cells cone center");
+    plt::legend();
+    plt::show();
+#endif
+
+    //cv::imshow("Cells", mat);
     initCellsGpu(cellsCPU, cellsArrayWidth, cellsArrayHeight);
     //free(cellsArrayGPU);
     return cellsCPU;
@@ -194,21 +353,26 @@ std::vector<Point> RetinaCuda::initSelectiveCells()
 {
     magnoMappingSrc.clear();
     magnoMappingDst.clear();
-    int x = 0;
-    int y = 0;
-    int max_x = 0;
-    for (unsigned int h = 0; h < cones_cpu_.height; h += 2)
+    // int x = 0;
+    // int y = 0;
+    // int max_x = 0;
+
+    int width = cones_cpu_.width / 2;
+    width -= width % BLOCK_SIZE;
+    int height = cones_cpu_.height / 2;
+    height -= height % BLOCK_SIZE;
+    for (unsigned int h = 0; h < height; h++)
     {
-        x = 0;
-        for (unsigned int w = 0; w < cones_cpu_.width; w += 2)
+        //x = 0;
+        for (unsigned int w = 0; w < width; w++)
         {
-            magnoMappingSrc.push_back(Point(w, h));
-            magnoMappingDst.push_back(Point(x, y));
-            if (x > max_x)
-            {
-                max_x = x;
-            }
-            x++;
+            magnoMappingSrc.push_back(Point(w * 2, h * 2));
+            magnoMappingDst.push_back(Point(w, h));
+            // if (x > max_x)
+            // {
+            //     max_x = x;
+            // }
+            //x++;
 
             //            if(w >= coneMarge.at(h) && w <= conesArrayWidth-coneMarge.at(h)){
             //                if(sqrt((float)((h-conesArrayHeight/2.0)*(h-conesArrayHeight/2.0)+(w-conesArrayWidth/2.0)*(w-conesArrayWidth/2.0))) > parameters.ph_fovea_radius){
@@ -222,10 +386,10 @@ std::vector<Point> RetinaCuda::initSelectiveCells()
             //                }
             //            }
         }
-        y++;
+        //y++;
     }
-    directive_width = max_x;
-    directive_height = y - 1;
+    directive_width = width;
+    directive_height = height;
     initDirectiveGpu(magnoMappingSrc, magnoMappingDst);
 
     return magnoMappingSrc;
@@ -233,34 +397,86 @@ std::vector<Point> RetinaCuda::initSelectiveCells()
 
 void RetinaCuda::initCone(int inputWidth, int inputHeight)
 {
+    ConeModel cone_model(parameters.ph_config);
+    std::cout << "Cone model radius          : " << cone_model_ptr_->getConeRadius() << " cones" << std::endl;
+    std::cout << "Cone model max eccentricity: " << cone_model_ptr_->getConeAngularPose(cone_model_ptr_->getConeRadius()) << " °" << std::endl;
+    std::cout << "Pixel Cone model radius    : " << photo_sim_ptr_->getSimulatedConeRadius() << " pixcones" << std::endl;
+    std::cout << "Pixel Cone max eccentricity: " << photo_sim_ptr_->getMaxEccentricity() << " °" << std::endl;
+
     //Findout cones dimensions (width and height)
     int coneWidth = -1;
     int coneHeight = -1;
 
-    //Get cones width
-    for (int r = 0; r < INT_MAX / 2 && coneWidth < 0; r++)
+    if (photo_sim_ptr_->getSimulatedConeRadius() <= 0)
+    {
+        std::cerr << "initCone: invalid cone source" << std::endl;
+        throw std::invalid_argument("invalid cone source");
+    }
+
+    //Get acheivable simulated cones width
+    for (int r = 0; r < photo_sim_ptr_->getSimulatedConeRadius() && coneWidth < 0; r++)
     {
         cv::Vec2f direction(1, 0);
-        cv::Point src_pos = getPosition(cone_distance_mapping(r), cv::Size(inputWidth, inputHeight), direction);
-        if (src_pos.x >= inputWidth || src_pos.y >= inputHeight ||
+        double pixel_index = photo_sim_ptr_->getPixelIndex(r);
+
+        cv::Point src_pos = getPosition(pixel_index, cv::Size(inputWidth, inputHeight), direction);
+
+        // If no matching pixel, stop
+        if (pixel_index < 0 || src_pos.x >= inputWidth || src_pos.y >= inputHeight ||
             src_pos.x < 0 || src_pos.y < 0)
         {
             coneWidth = (r - 1) * 2;
-            coneWidth = coneWidth - coneWidth % 16;
+            coneWidth = coneWidth - coneWidth % BLOCK_SIZE;
         }
+
+        // if (pixel_index >= 0) // a pixel has matched
+        // {
+        //     cv::Point src_pos = getPosition(pixel_index, cv::Size(inputWidth, inputHeight), direction);
+        //     // cv::Point src_pos = getPosition(cone_distance_mapping(r), cv::Size(inputWidth, inputHeight), direction); // TODO generic keep
+        //     if (src_pos.x >= inputWidth || src_pos.y >= inputHeight ||
+        //         src_pos.x < 0 || src_pos.y < 0)
+        //     {
+        //         coneWidth = (r - 1) * 2;
+        //         coneWidth = coneWidth - coneWidth % BLOCK_SIZE;
+        //     }
+        // }
+        // else
+        // {
+        // }
     }
+
+    if (coneWidth < 0)
+    {
+        coneWidth = photo_sim_ptr_->getSimulatedConeRadius();
+    }
+
     //Get cones height
-    for (int r = 0; r < INT_MAX / 2 && coneHeight < 0; r++)
+    for (int r = 0; r < photo_sim_ptr_->getSimulatedConeRadius() && coneHeight < 0; r++)
     {
         cv::Vec2f direction(0, 1);
-        cv::Point src_pos = getPosition(cone_distance_mapping(r), cv::Size(inputWidth, inputHeight), direction);
-        if (src_pos.x >= inputWidth || src_pos.y >= inputHeight ||
+        double pixel_index = photo_sim_ptr_->getPixelIndex(r);
+        cv::Point src_pos = getPosition(pixel_index, cv::Size(inputWidth, inputHeight), direction);
+
+        // If no matching pixel, stop
+        if (pixel_index < 0 || src_pos.x >= inputWidth || src_pos.y >= inputHeight ||
             src_pos.x < 0 || src_pos.y < 0)
         {
             coneHeight = (r - 1) * 2;
-            coneHeight = coneHeight - coneHeight % 16;
+            coneHeight = coneHeight - coneHeight % BLOCK_SIZE;
         }
+
+        // cv::Vec2f direction(0, 1);
+        // //cv::Point src_pos = getPosition(cone_distance_mapping(r), cv::Size(inputWidth, inputHeight), direction);
+        // cv::Point src_pos = getPosition(photo_sim_ptr_->getPixelIndex(r), cv::Size(inputWidth, inputHeight), direction);
+        // if (src_pos.x >= inputWidth || src_pos.y >= inputHeight ||
+        //     src_pos.x < 0 || src_pos.y < 0)
+        // {
+        //     coneHeight = (r - 1) * 2;
+        //     coneHeight = coneHeight - coneHeight % BLOCK_SIZE;
+        // }
     }
+
+    std::cout << "Cone map dimension are " << coneWidth << " x " << coneHeight << std::endl;
 
     if (coneHeight <= 0 || coneWidth <= 0)
     {
@@ -275,7 +491,9 @@ void RetinaCuda::initCone(int inputWidth, int inputHeight)
     Cone cone;
     double r;
 
-    cv::Mat mat(coneWidth, coneWidth, CV_8UC3, cv::Vec3b(255, 255, 255));
+    //cv::Mat mat(coneWidth, coneWidth, CV_8UC3, cv::Vec3b(255, 255, 255));
+    // Map containing info on the ganglionar cells properties
+    std::map<std::string, std::vector<float>> description_map;
 
     //Default model
     setRandomSeed(parameters.random_seed);
@@ -289,9 +507,11 @@ void RetinaCuda::initCone(int inputWidth, int inputHeight)
             //ganglionarExternalRadius = cone_coverage(r);
             //ganglionarInternalRadius = MAX(1.0,ganglionarExternalRadius/2.0);
             cv::Vec2f direction = getDirectionFromCenter(cv::Point(i, j), cv::Size(coneWidth, coneHeight));
-            cv::Point src_pos = getPosition(cone_distance_mapping(r), cv::Size(parameters.input_width, parameters.input_height), direction);
+            double pixel_index = photo_sim_ptr_->getPixelIndex(r);
+            cv::Point src_pos = getPosition(pixel_index, cv::Size(parameters.input_width, parameters.input_height), direction);
+            //cv::Point src_pos = getPosition(cone_distance_mapping(r), cv::Size(parameters.input_width, parameters.input_height), direction);
 
-            if (src_pos.x >= parameters.input_width || src_pos.y >= parameters.input_height ||
+            if (pixel_index < 0 || src_pos.x >= parameters.input_width || src_pos.y >= parameters.input_height ||
                 src_pos.x < 0 || src_pos.y < 0)
             {
                 cone.type = PHOTO_TYPE::NONE;
@@ -303,6 +523,11 @@ void RetinaCuda::initCone(int inputWidth, int inputHeight)
                 cone.center_y = src_pos.y;
                 cone.type = weightedRandom<PHOTO_TYPE>({{parameters.ph_S_cone_ratio, PHOTO_TYPE::S_CONE}, {parameters.ph_M_cone_ratio, PHOTO_TYPE::M_CONE}, {parameters.ph_L_cone_ratio, PHOTO_TYPE::L_CONE}});
 
+                if (j == coneHeight / 8)
+                {
+                    description_map["pixel_index"].push_back(pixel_index);
+                    description_map["pixel_index_x"].push_back(i);
+                }
                 // //Display stuff
                 // if(j == coneHeight/2){
                 //     cv::Vec3b red = cv::Vec3b(255,0,0);
@@ -315,6 +540,15 @@ void RetinaCuda::initCone(int inputWidth, int inputHeight)
             cones_cpu_.cones[i + j * coneWidth] = cone;
         }
     }
+
+#ifdef WITH_MATPLOTLIB
+    plt::figure();
+    plt::named_plot("Cone pixel index 1/8th", description_map["pixel_index_x"], description_map["pixel_index"]);
+    plt::title("Cone pixel index");
+    plt::legend();
+    //
+
+#endif
 
     //cv::imshow("PhotoSampling",mat);
     initPhotoGpu();
@@ -439,7 +673,12 @@ double RetinaCuda::getRandom()
 void RetinaCuda::applyParvoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst)
 {
     //imgDst
-    imgDst.create(cellsArrayHeight, cellsArrayWidth, CV_8UC1);
+    if (imgDst.cols != cellsArrayWidth || imgDst.rows != cellsArrayHeight)
+    {
+        imgDst.create(cellsArrayHeight, cellsArrayWidth, CV_8UC1);
+        imgDst.setTo(0);
+    }
+
     //qDebug()<<"SIZES:"<<imgSrc.cols<<imgSrc.rows<<imgDst.cols<<imgDst.rows;
     gpu::multiConvolve(imgSrc, imgDst, gpuCells, cellsArrayWidth, cellsArrayHeight, cudaStreamDefault);
     cudaError_t err = cudaGetLastError();
@@ -453,6 +692,7 @@ void RetinaCuda::applyParvoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst
 void RetinaCuda::applyDirectiveGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cv::cuda::GpuMat &prevImage)
 {
     //imgDst
+    std::cout << "directive_height " << directive_height << "directive_width " << directive_width << std::endl;
     imgDst.create(directive_height, directive_width, CV_8UC1);
     imgDst.setTo(0);
     //qDebug()<<"SIZES:"<<imgSrc.cols<<imgSrc.rows<<imgDst.cols<<imgDst.rows;

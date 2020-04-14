@@ -11,6 +11,10 @@
 #include "Cuda/cuda_arrays.h"
 
 #include "Utils/ramp_utils.h"
+
+#include "simulations/ConeModel.h"
+#include "simulations/PixelConeModel.h"
+#include "simulations/MGCellsSim.h"
 /**
  * @brief Class performing retina processing from a camera input
  *
@@ -23,6 +27,9 @@ public:
         ///// Raw input params /////
         int input_width = 0;  // in pixels
         int input_height = 0; // in pixels
+
+        ConeModelConfig ph_config;
+        PixelConeModelConfig pix_config;
 
         //Photoreceptor params
         double ph_fovea_radius; //radius in pixels that are inside the fovea. 60M cones in human fovea
@@ -182,18 +189,18 @@ private:
         return linearRampIntegral(cone_distance_from_center, pixel_per_cone_ramp_);
     }
 
+    double getDistanceFromCenter(double pix_x, double pix_y, double width, double height)
+    {
+        return sqrt(std::pow(pix_x - width / 2.0, 2) + std::pow(pix_y - height / 2.0, 2));
+    }
+
     //    double getConesMaxRadius(){
     //        return sqrt((double)parameters*parameters.cones_width + parameters.cones_height*parameters.cones_height)/2;
     //    }
 
-    cv::Point convertPosToCenter(int posx, int posy, int max_x, int max_y)
-    {
-        cv::Point(posx - max_x / 2.0, posy - max_y / 2.0);
-    }
-
     cv::Vec2f getDirectionFromCenter(cv::Point topLeftPosition, cv::Size size)
     {
-        return cv::Vec2f(topLeftPosition.x - size.width / 2.0, topLeftPosition.y - size.height / 2.0);
+        return cv::normalize(cv::Vec2f(topLeftPosition.x - size.width / 2.0, topLeftPosition.y - size.height / 2.0));
     }
 
     cv::Point getPosition(double a_distance_from_center, cv::Size a_size, cv::Vec2f direction)
@@ -241,4 +248,7 @@ private:
     std::mt19937 mt_rand;
 
     Cones cones_cpu_;
+
+    std::unique_ptr<ConeModel> cone_model_ptr_;
+    std::unique_ptr<PixelConeModel> photo_sim_ptr_;
 };

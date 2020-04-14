@@ -137,6 +137,11 @@ __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda
 
     Ganglionar cell = cellsArray[(xdst+ydst*cellsArrayWidth)];//%(cellsArrayWidth*cellsArrayHeight)/*(xdst+ydst*cellsArrayWidth)%(cellsArrayWidth*cellsArrayHeight)*/];
 
+    if(cell.type == GC_RESPONSE_TYPE::NONE){
+        imgDst(ydst,xdst)= 0;
+        return;
+    }
+
 //    if(xdst+ydst*cellsArrayWidth < 50){
 //        printf(" cell %i: centerx%i \n", xdst+ydst*cellsArrayWidth, cell.center_x);
 
@@ -159,24 +164,133 @@ __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda
     int nbCenter = 0;
     int nbOut = 0;
 
+    if(ex_radius_squarred <= 1){
+        if(cell.type == GC_RESPONSE_TYPE::ON){
+            value_center += imgSrc(y,x);
+        }else{
+            value_center -= imgSrc(y,x);
+        }
+        nbCenter = 1;
+    }else{
+        for(xi=-cell.extern_radius; xi <= cell.extern_radius; xi++){
+            for(yi=-cell.extern_radius; yi <= cell.extern_radius; yi++){
+                if(x+xi>0 && x+xi<nbcols && y+yi>0 && y+yi<nbrows){
+                    if(xi*xi + yi*yi < in_radius_squarred){//if we are in the radius
+                        if(cell.type == GC_RESPONSE_TYPE::ON){
+                            value_center += imgSrc(y+yi,x+xi);
+                        }else{
+                            value_center -= imgSrc(y+yi,x+xi);
+                        }
+                        nbCenter++;
+                    }else if(xi*xi + yi*yi < ex_radius_squarred){
+                        if(cell.type == GC_RESPONSE_TYPE::ON){
+                            value_ext -= imgSrc(y+yi,x+xi);
+                        }else{
+                            value_ext += imgSrc(y+yi,x+xi);
+                        }
+                        nbOut++;
+                    }
+                }else{
+                    // receptive field outside cone map
+                    imgDst(ydst,xdst)= 254;
+                    return;
+                }
+            }
+        }
+    }
 
-    for(xi=-cell.extern_radius; xi <= cell.extern_radius; xi++){
-        for(yi=-cell.extern_radius; yi <= cell.extern_radius; yi++){
-            if(x+xi>0 && x+xi<nbcols && y+yi>0 && y+yi<nbrows){
-                if(xi*xi + yi*yi < in_radius_squarred){//if we are in the radius
-                    if(cell.type == 0){
-                        value_center += (imgSrc(y+yi,x+xi)-128);
-                    }else{
-                        value_center -= (imgSrc(y+yi,x+xi)-128);
+    int total_value;
+
+    // the ganglionar response is centred on 128
+    // [0,128[ low pulsing frequencies
+    // ]128,255] high pulsing frequencies
+    if(nbOut == 0){
+        total_value =  value_center/(float)nbCenter/2.0+128;
+    }else if(nbCenter == 0){
+        total_value = 128;
+    }else{
+        total_value =  (value_center/(float)nbCenter + value_ext/(float)nbOut)/2.0+128;//*cell.extern_radius;
+        //total_value =  (value_center/(float)nbCenter + value_ext/(float)nbOut)/2.0;//*cell.extern_radius;
+    }
+
+
+//    float sub = (value_center/(float)nbOn + value_ext/(float)nbOff)/2.0;;
+//    if(xdst ==42 && 42 ==ydst){
+//        printf(" cell value%i %i %i: %f\n", total_value,nbOn,value_center,sub);
+//    }
+    if(total_value<0){
+        total_value = 0;
+    }else if(total_value>255){
+        total_value= 255;
+    }
+
+    if(xdst<imgDst.cols && ydst < imgDst.rows)
+        imgDst(ydst,xdst)= total_value;
+
+}
+
+__global__ void legacyMultiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Ganglionar* cellsArray, int cellsArrayWidth, int cellsArrayHeight){
+    // Get our global thread ID
+    int xdst = blockIdx.x*blockDim.x +threadIdx.x;
+    int ydst = blockIdx.y*blockDim.y+threadIdx.y;
+
+    int nbcols = imgSrc.cols;
+    int nbrows = imgSrc.rows;
+
+
+    Ganglionar cell = cellsArray[(xdst+ydst*cellsArrayWidth)];//%(cellsArrayWidth*cellsArrayHeight)/*(xdst+ydst*cellsArrayWidth)%(cellsArrayWidth*cellsArrayHeight)*/];
+
+    if(cell.type == GC_RESPONSE_TYPE::NONE){
+        imgDst(ydst,xdst)= 0;
+    }
+//    if(xdst+ydst*cellsArrayWidth < 50){
+//        printf(" cell %i: centerx%i \n", xdst+ydst*cellsArrayWidth, cell.center_x);
+
+//    }
+
+
+
+    int x = cell.center_x;
+    int y = cell.center_y;
+
+    int in_radius_squarred = cell.intern_radius*cell.intern_radius;
+    int ex_radius_squarred = cell.extern_radius*cell.extern_radius;
+
+    int xi;
+    int yi;
+
+    int value_center = 0;
+    int value_ext = 0;
+
+    int nbCenter = 0;
+    int nbOut = 0;
+
+    if(ex_radius_squarred == 1){
+        if(cell.type == GC_RESPONSE_TYPE::ON){
+            value_center += (imgSrc(y,x)-128);
+        }else{
+            value_center -= (imgSrc(y,x)-128);
+        }
+        nbCenter = 1;
+    }else{
+        for(xi=-cell.extern_radius; xi <= cell.extern_radius; xi++){
+            for(yi=-cell.extern_radius; yi <= cell.extern_radius; yi++){
+                if(x+xi>0 && x+xi<nbcols && y+yi>0 && y+yi<nbrows){
+                    if(xi*xi + yi*yi < in_radius_squarred){//if we are in the radius
+                        if(cell.type == GC_RESPONSE_TYPE::ON){
+                            value_center += (imgSrc(y+yi,x+xi)-128);
+                        }else{
+                            value_center -= (imgSrc(y+yi,x+xi)-128);
+                        }
+                        nbCenter++;
+                    }else if(xi*xi + yi*yi < ex_radius_squarred){
+                        if(cell.type == GC_RESPONSE_TYPE::ON){
+                            value_ext -= (imgSrc(y+yi,x+xi)-128);
+                        }else{
+                            value_ext += (imgSrc(y+yi,x+xi)-128);
+                        }
+                        nbOut++;
                     }
-                    nbCenter++;
-                }else if(xi*xi + yi*yi < ex_radius_squarred){
-                    if(cell.type == 0){
-                        value_ext -= (imgSrc(y+yi,x+xi)-128);
-                    }else{
-                        value_ext += (imgSrc(y+yi,x+xi)-128);
-                    }
-                    nbOut++;
                 }
             }
         }
@@ -344,8 +458,8 @@ void channelSampling(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrStepSz<u_c
 
     // Number of threads in each thread block
 //    blockSize = 960;
-    block.x = 16;
-    block.y = 16;
+    block.x = BLOCK_SIZE;
+    block.y = BLOCK_SIZE;
 
     // Number of thread blocks in grid
     //gridSize = (int)ceil((float)(imgDst.cols*imgDst.rows)/blockSize);
@@ -362,8 +476,8 @@ void photoreceptorSampling1C(cv::cuda::PtrStepSz<uchar> imgSrc, cv::cuda::PtrSte
     dim3 grid, block;
 
     // Number of threads in each thread block
-    block.x = 16;
-    block.y = 16;
+    block.x = BLOCK_SIZE;
+    block.y = BLOCK_SIZE;
 
     // Number of thread blocks in grid
     //gridSize = (int)ceil((float)(imgDst.cols*imgDst.rows)/blockSize);
@@ -380,8 +494,8 @@ void photoreceptorSampling3C(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrSt
     dim3 grid, block;
 
     // Number of threads in each thread block
-    block.x = 16;
-    block.y = 16;
+    block.x = BLOCK_SIZE;
+    block.y = BLOCK_SIZE;
 
     grid.x = (int)ceil((float)(imgDst.cols)/block.x);
     grid.y = (int)ceil((float)(imgDst.rows)/block.y);
@@ -397,8 +511,8 @@ void photoreceptorSampling(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrStep
 
     // Number of threads in each thread block
 //    blockSize = 960;
-    block.x = 16;
-    block.y = 16;
+    block.x = BLOCK_SIZE;
+    block.y = BLOCK_SIZE;
 
     // Number of thread blocks in grid
     //gridSize = (int)ceil((float)(imgDst.cols*imgDst.rows)/blockSize);
@@ -416,8 +530,8 @@ void photoreceptorSampling(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrStep
 
 //    // Number of threads in each thread block
 ////    blockSize = 960;
-//    block.x = 16;
-//    block.y = 16;
+//    block.x = BLOCK_SIZE;
+//    block.y = BLOCK_SIZE;
 
 //    // Number of thread blocks in grid
 //    //gridSize = (int)ceil((float)(imgDst.cols*imgDst.rows)/blockSize);
@@ -436,8 +550,8 @@ void multiConvolve(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_cha
 
     // Number of threads in each thread block
 //    blockSize = 960;
-    block.x = 16;
-    block.y = 16;
+    block.x = BLOCK_SIZE;
+    block.y = BLOCK_SIZE;
 
     // Number of thread blocks in grid
     //gridSize = (int)ceil((float)(imgDst.cols*imgDst.rows)/blockSize);
@@ -457,8 +571,8 @@ void directionSelectiveComputation(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda:
 
     // Number of threads in each thread block
     block.x = 256;
-    //block.x = 16;
-    //block.y = 16;
+    //block.x = BLOCK_SIZE;
+    //block.y = BLOCK_SIZE;
 
     // Number of thread blocks in grid
     //gridSize = (int)ceil((float)(imgDst.cols*imgDst.rows)/blockSize);
@@ -476,8 +590,8 @@ void sparse(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, GpuBitArray2D& imgDst
     imgDst.resize(imgSrc.cols*depth,imgSrc.rows);
 
     // Number of threads in each thread block
-    block.x = 16;
-    block.y = 16;
+    block.x = BLOCK_SIZE;
+    block.y = BLOCK_SIZE;
 
     grid.x = (int)ceil((float)(imgSrc.cols)/block.x);
     grid.y = (int)ceil((float)(imgSrc.rows)/block.y);
@@ -489,8 +603,8 @@ void discretise(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, cv::cuda::PtrStep
     dim3 grid, block;
 
     // Number of threads in each thread block
-    block.x = 16;
-    block.y = 16;
+    block.x = BLOCK_SIZE;
+    block.y = BLOCK_SIZE;
 
     grid.x = (int)ceil((float)(imgSrc.cols)/block.x);
     grid.y = (int)ceil((float)(imgSrc.rows)/block.y);

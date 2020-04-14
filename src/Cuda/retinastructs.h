@@ -1,6 +1,8 @@
 #pragma once
 #include <vector>
 
+constexpr int BLOCK_SIZE = 32;
+
 enum class PHOTO_TYPE
 {
     S_CONE = 0,
@@ -10,13 +12,20 @@ enum class PHOTO_TYPE
 
 };
 
+enum class GC_RESPONSE_TYPE
+{
+    ON = 0,
+    OFF = 1,
+    NONE = 3
+};
+
 struct Ganglionar
 {
     int center_x;
     int center_y;
     int intern_radius;
     int extern_radius;
-    unsigned int type; //0 ON, 1 OFF
+    GC_RESPONSE_TYPE type; //0 ON, 1 OFF
 };
 
 struct Cone

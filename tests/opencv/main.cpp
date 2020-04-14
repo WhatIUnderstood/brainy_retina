@@ -37,6 +37,13 @@ int main(int argc, char *argv[])
     params.input_height = 2160; //720 480;
 
     //cone sampling
+    params.pix_config.camera_hfov = 74.0;
+    params.pix_config.camera_width = 3840;
+    params.pix_config.camera_height = 2160;
+    params.ph_config.ph_S_cone_ratio = 5.0 / 100.0;
+    params.ph_config.ph_M_cone_ratio = 70.0 / 100.0;
+    params.ph_config.ph_L_cone_ratio = 25.0 / 100.0;
+
     params.ph_fovea_pixels_by_cone = 1;
     params.ph_fovea_radius = 112;              //5° 225
     params.ph_max_pixels_by_cone = 14;         //
@@ -91,10 +98,10 @@ int main(int argc, char *argv[])
     retina.initRetina(params);
 
     cv::cuda::GpuMat gpuMatSrc(params.input_width, params.input_height, CV_8UC1);
-    cv::cuda::GpuMat gpuMatCones(params.input_width, params.input_height, CV_8UC1);
-    cv::cuda::GpuMat gpuMatDst(params.input_width, params.input_height, CV_8UC1);
-    cv::cuda::GpuMat gpuMatPrev(params.input_width, params.input_height, CV_8UC1);
-    cv::cuda::GpuMat gpuMatDirectionSelectiveOuput(params.input_width, params.input_height, CV_8UC1);
+    cv::cuda::GpuMat gpuMatCones;                   //params.input_width, params.input_height, CV_8UC1);
+    cv::cuda::GpuMat gpuMatDst;                     //(params.input_width, params.input_height, CV_8UC1);
+    cv::cuda::GpuMat gpuMatPrev;                    //(params.input_width, params.input_height, CV_8UC1);
+    cv::cuda::GpuMat gpuMatDirectionSelectiveOuput; //(params.input_width, params.input_height, CV_8UC1);
 
     cv::imwrite("cone_map.png", retina.drawConeMap());
 
@@ -127,6 +134,7 @@ int main(int argc, char *argv[])
     //cv::namedWindow("MyVideo",cv::WINDOW_AUTOSIZE); //create a window called "MyVideo"
     //int i=0;
     cv::namedWindow("Camera input", cv::WINDOW_NORMAL);
+    cv::namedWindow("Cones output", cv::WINDOW_NORMAL);
 
     uint64_t counter = 0;
     bool pause = false;
@@ -168,7 +176,8 @@ int main(int argc, char *argv[])
             TimePoint t_proc = Time::now();
             retina.applyPhotoreceptorSampling(gpuMatSrc, gpuMatCones);
             retina.applyParvoGC(gpuMatCones, gpuMatDst);
-            retina.applyDirectiveGC(gpuMatCones, gpuMatDirectionSelectiveOuput, gpuMatPrev);
+            ///retina.applyDirectiveGC(gpuMatCones, gpuMatDirectionSelectiveOuput, gpuMatPrev);
+
             ///retina.sparse(gpuMatDst,16,gpuSparseArray);
             ///retina.sparse(gpuMatDirectionSelectiveOuput,8,gpuSparseDirectionSelectiveArray,0,64);
 
@@ -177,21 +186,35 @@ int main(int argc, char *argv[])
             ///retina.discretise(gpuMatDst,8,gpudiscreteGCArray);
 
             frameConeRetina = cv::Mat(gpuMatCones.rows, gpuMatCones.cols, CV_8UC1);
-            gpuMatCones.download(frameConeRetina);
+            gpuMatCones.download(frameConeRetina); //cudaStreamDefault
 
             //qDebug()<<"frameRetina"<<frameRetina.cols<<frameRetina.rows<<gpuMatDst.cols;
-            frameRetina = cv::Mat(gpuMatDst.rows, gpuMatDst.cols, CV_8UC1);
-            gpuMatDst.download(frameRetina);
+            if (gpuMatDst.rows > 0)
+            {
+                frameRetina = cv::Mat(gpuMatDst.rows, gpuMatDst.cols, CV_8UC1);
+                gpuMatDst.download(frameRetina);
+            }
 
-            frameSelectiveRetina = cv::Mat(gpuMatDirectionSelectiveOuput.rows, gpuMatDirectionSelectiveOuput.cols, CV_8UC1);
-            gpuMatDirectionSelectiveOuput.download(frameSelectiveRetina);
+            if (gpuMatDirectionSelectiveOuput.rows > 0)
+            {
+                frameSelectiveRetina = cv::Mat(gpuMatDirectionSelectiveOuput.rows, gpuMatDirectionSelectiveOuput.cols, CV_8UC1);
+                gpuMatDirectionSelectiveOuput.download(frameSelectiveRetina);
+            }
             TimePoint t_end = Time::now();
 
             // Holds the colormap version of the image:
             // Apply the colormap:
-            cv::applyColorMap(frameRetina, cv_cm_img0, cv::COLORMAP_JET); //COLORMAP_RAINBOW COLORMAP_JET
+            if (frameRetina.cols > 0)
+            {
+                cv::applyColorMap(frameRetina, cv_cm_img0, cv::COLORMAP_JET);                                                  //COLORMAP_RAINBOW COLORMAP_JET
+                cv::imshow("GC output" + std::to_string(cv_cm_img0.cols) + "x" + std::to_string(cv_cm_img0.rows), cv_cm_img0); //show the frame in "MyVideo" window
+            }
 
-            cv::applyColorMap(frameSelectiveRetina, cv_cm_selective, cv::COLORMAP_JET);
+            if (frameSelectiveRetina.cols > 0)
+            {
+                cv::applyColorMap(frameSelectiveRetina, cv_cm_selective, cv::COLORMAP_JET);
+                cv::imshow("MyVideo directional" + std::to_string(cv_cm_selective.cols) + "x" + std::to_string(cv_cm_selective.rows), cv_cm_selective);
+            }
 
             //Discrete window
             ///HostBitArray2D discreteArray;
@@ -207,9 +230,7 @@ int main(int argc, char *argv[])
 
             //gpuMatSrc.download(frameRetina);
             //std::cout<<"frameRetina "<<frameRetina.cols<<frameRetina.rows<<std::endl;
-            cv::imshow("GC output" + std::to_string(cv_cm_img0.cols) + "x" + std::to_string(cv_cm_img0.rows), cv_cm_img0); //show the frame in "MyVideo" window
             cv::imshow("Camera input", frame);
-            cv::imshow("MyVideo directional" + std::to_string(cv_cm_selective.cols) + "x" + std::to_string(cv_cm_selective.rows), cv_cm_selective);
             cv::imshow("Cones output", frameConeRetina);
 
             //cv::imshow("Sparse output",cv_discrete);

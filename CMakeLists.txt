@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 2.8.11)
+cmake_minimum_required (VERSION 3.10.0)
 project (CudaRetina LANGUAGES CUDA CXX)
 
 set(CudaRetina_MAJOR_VERSION 0)
@@ -36,8 +36,8 @@ set(INSTALL_CMAKE_DIR ${CMAKE_INSTALL_PREFIX}/${DEF_INSTALL_CMAKE_DIR})
 
 ### Build the library ###
 
-## Setup c++14
-set(CMAKE_CXX_STANDARD 14)
+## Setup c++17
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Setup shared library flags
@@ -68,6 +68,17 @@ include_directories(
 ## Build the library
 cuda_add_library(gpuretina ${CUDA_SRCS} ${SRCS} SHARED) #${CUDA_SRCS}
 TARGET_LINK_LIBRARIES(gpuretina ${CUDA_LIBRARIES} ${OpenCV_LIBRARIES})
+
+##
+option(WITH_MATPLOTLIB "use matplotlib to display graphs" OFF)
+if(WITH_MATPLOTLIB)
+  find_package(PythonLibs 2.7)
+  target_include_directories(gpuretina PRIVATE ${PYTHON_INCLUDE_DIRS})
+  target_link_libraries(gpuretina ${PYTHON_LIBRARIES})
+
+  add_definitions(-DWITH_MATPLOTLIB)
+  target_include_directories(gpuretina PRIVATE third_party/)
+endif()
 
 ### Install the library ###
 
@@ -111,9 +122,9 @@ set(OPENCV_CMAKE_PATH /opt/opencv/3.2.0/ )
 
 set(OPENCV_ROOT_DIR /opt/opencv/3.2.0)
 
-cuda_add_executable(gpuretina_test ${CUDA_SRCS} ${SRCS} tests/opencv/main.cpp)
+cuda_add_executable(gpuretina_test tests/opencv/main.cpp)
 target_include_directories(gpuretina_test PUBLIC src/ third_party/CLI11/include)
-TARGET_LINK_LIBRARIES(gpuretina_test ${CUDA_LIBRARIES} ${OpenCV_LIBRARIES})
+TARGET_LINK_LIBRARIES(gpuretina_test gpuretina ${CUDA_LIBRARIES} ${OpenCV_LIBRARIES})
 
 
 ### Force QT Creator to display all files

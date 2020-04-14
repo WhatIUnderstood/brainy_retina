@@ -23,6 +23,10 @@ case $key in
     shift # past argument
     shift # past value
     ;;
+    --rebuild)
+    REBUILD=YES
+    shift # past argument
+    ;;
     *)    # unknown option
     POSITIONAL+=("$1") # save it in an array for later
     shift # past argument
@@ -39,7 +43,6 @@ fi
 echo "OPTS       = ${OPTS}"
 echo "PERSISTENT = ${PERSISTENT}"
 echo "ENV_NAME   = ${ENV_NAME}"
-
 
 # Start the persistent dev docker or reuse it if already launched
 DOCKER_CONTAINER_NAME="retina_dev_$ENV_NAME"
@@ -64,18 +67,29 @@ then
     DOCK_OPT_DISPLAY_RUN=$DOCK_OPT_DISPLAY_RUN" --rm"
 fi
 
+build_docker(){
+    docker build -t $DOCKER_IMG_NAME -f $DOCKER_IMG_DOCKERFILE_ABS $DOCKER_CONTEXT_PATH_ABS
+}
+
+if [[ $REBUILD ]]
+then
+    echo "Building docker $DOCKER_CONTAINER_NAME ..."
+    build_docker || (echo "failed to build docker image $DOCKER_IMG_NAME" ; exit 1)
+fi
+
 echo "Starting $DOCKER_CONTAINER_NAME docker from $ROOT_DIR"
 
 if [ ! "$(docker ps -q -f name=$DOCKER_CONTAINER_NAME)" ]; then
     # The container already exists, either start it or exec
     if [ "$(docker ps -q -a -f name=$DOCKER_CONTAINER_NAME)" ]; then
         echo "Starting $DOCKER_CONTAINER_NAME docker for the project at $ROOT_DIR"
+        echo docker start -i --attach $DOCKER_CONTAINER_NAME
         docker start -i --attach $DOCKER_CONTAINER_NAME
     else
         # if image does not exists, build it from local dev dockerfile
         if [[ "$(docker images -q $DOCKER_CONTAINER_NAME 2> /dev/null)" == "" ]]; then
             echo "Building docker $DOCKER_CONTAINER_NAME ..."
-            docker build -t $DOCKER_IMG_NAME -f $DOCKER_IMG_DOCKERFILE_ABS $DOCKER_CONTEXT_PATH_ABS || (echo "failed to build docker image $DOCKER_IMG_NAME" ; exit 1)
+            build_docker || (echo "failed to build docker image $DOCKER_IMG_NAME" ; exit 1)
         fi
 
         # The container does not exists, create it
