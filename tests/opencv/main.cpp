@@ -16,9 +16,11 @@
 
 #include "CLI/CLI.hpp"
 #include "utils.h"
+#include "Utils/colormap.h"
 
 typedef std::chrono::time_point<std::chrono::system_clock> TimePoint;
 typedef std::chrono::system_clock Time;
+
 //typedef std::chrono::duration_cast<std::chrono::milliseconds> Ms;
 int main(int argc, char *argv[])
 {
@@ -131,10 +133,13 @@ int main(int argc, char *argv[])
     //cv_capture->set(CV_CAP_PROP_POS_MSEC, 300); //start the video at 300ms
     //double fps = cv_capture->get(cv::CAP_PROP_FPS); //get the frames per seconds of the video
 
-    //cv::namedWindow("MyVideo",cv::WINDOW_AUTOSIZE); //create a window called "MyVideo"
-    //int i=0;
     cv::namedWindow("Camera input", cv::WINDOW_NORMAL);
     cv::namedWindow("Cones output", cv::WINDOW_NORMAL);
+
+    // Create a colormap to display ganglionar cell response
+    auto color_mapping = colormap::mirrorColorMap(colormap::reverseColorMap(colormap::buildColorMap(colormap::COLORMAP_TYPE::BLUE_GREEN_RED)));
+    cv ::Mat lut = colormap::convertToLUT(color_mapping);
+    cv::Mat color_map_img = colormap::buildColorMapImage(lut, 255, 80);
 
     uint64_t counter = 0;
     bool pause = false;
@@ -206,7 +211,11 @@ int main(int argc, char *argv[])
             // Apply the colormap:
             if (frameRetina.cols > 0)
             {
-                cv::applyColorMap(frameRetina, cv_cm_img0, cv::COLORMAP_JET);                                                  //COLORMAP_RAINBOW COLORMAP_JET
+                cv::cvtColor(frameRetina, cv_cm_img0, cv::COLOR_GRAY2RGB);
+                cv::LUT(cv_cm_img0, lut, cv_cm_img0);
+                std::cout << "color_map_img.cols: " << color_map_img.cols << "x" << color_map_img.rows << " " << cv_cm_img0.cols << ":" << cv_cm_img0.rows << std::endl;
+                color_map_img.copyTo(cv_cm_img0(cv::Rect(0, 0, color_map_img.cols, color_map_img.rows)));
+
                 cv::imshow("GC output" + std::to_string(cv_cm_img0.cols) + "x" + std::to_string(cv_cm_img0.rows), cv_cm_img0); //show the frame in "MyVideo" window
             }
 
@@ -269,3 +278,44 @@ int main(int argc, char *argv[])
 
     return 0;
 }
+
+cv::Mat buildColorMap2()
+{
+    //Create custom color map
+    cv::Mat b(256, 1, CV_8UC1);
+    cv::Mat g(256, 1, CV_8UC1);
+    cv::Mat r(256, 1, CV_8UC1);
+    cv::Mat r1, r2, r3;
+
+    for (int i = 0; i < 256; i++)
+    {
+        if (i < 85)
+        {
+            b.at<uchar>(i) = 255 - i;
+            g.at<uchar>(i) = 0;
+            r.at<uchar>(i) = 0;
+        }
+        else if (i < 126)
+        {
+            b.at<uchar>(i) = 255 - i;
+            g.at<uchar>(i) = i - 85;
+            r.at<uchar>(i) = 0;
+        }
+        else if (i < 170)
+        {
+            b.at<uchar>(i) = 0;
+            g.at<uchar>(i) = i + 85;
+            r.at<uchar>(i) = i;
+        }
+        else
+        {
+            b.at<uchar>(i) = 0;
+            g.at<uchar>(i) = 0;
+            r.at<uchar>(i) = i;
+        }
+    }
+    cv::Mat channels[] = {b, g, r};
+    cv ::Mat lut; // Créer une table de recherche
+    cv::merge(channels, 3, lut);
+    return lut;
+};

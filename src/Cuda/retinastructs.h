@@ -23,8 +23,8 @@ struct Ganglionar
 {
     int center_x;
     int center_y;
-    int intern_radius;
-    int extern_radius;
+    float intern_radius;
+    float extern_radius;
     GC_RESPONSE_TYPE type; //0 ON, 1 OFF
 };
 

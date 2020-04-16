@@ -249,11 +249,11 @@ std::vector<Ganglionar> RetinaCuda::initGanglionarCells(int conesWidth, int cone
 
             //int linearReduction = 6;
 
-            ganglionarExternalRadius = std::fabs(next_midget_central_cone - midget_central_cone); // ON and OFF are overlapping
+            ganglionarExternalRadius = MAX(0.5, std::fabs(next_midget_central_cone - midget_central_cone) / std::sqrt(2.0)); // ON and OFF are overlapping
             // ganglionarExternalRadius = mgc_dentric_coverage(r);
             // std::cout
             //     << "ganglionarExternalRadius: " << ganglionarExternalRadius << " r:" << r << " midgetGCells.getMidgetCellAngularPose(r)" << midgetGCells.getMidgetCellAngularPose(r) << " midget_central_cone: " << midget_central_cone << " next_midget_central_cone:" << next_midget_central_cone << std::endl;
-            ganglionarInternalRadius = MAX(1.0, 1.0 / 3.0 * ganglionarExternalRadius);
+            ganglionarInternalRadius = MAX(0.5, 0.33 * ganglionarExternalRadius);
             cv::Vec2f direction = r == 0 ? cv::Vec2f(1, 0) : getDirectionFromCenter(cv::Point(i, j), cv::Size(cellsArrayWidth, cellsArrayHeight));
             cv::Point src_pos = getPosition(midget_central_cone, cv::Size(cones_cpu_.width, cones_cpu_.height), direction);
 
@@ -279,30 +279,40 @@ std::vector<Ganglionar> RetinaCuda::initGanglionarCells(int conesWidth, int cone
 
             if (j == cellsArrayHeight / 8)
             {
-                description_map["gcm_radius_at_eighth"].push_back(next_midget_central_cone);
+                description_map["gcm_radius_at_eighth"].push_back(next_midget_angular_pose - midget_angular_pose);
+                //description_map["gcm_radius_at_eighth"].push_back(next_midget_central_cone - midget_central_cone);
                 description_map["gcm_radius_at_eighth_x"].push_back(i);
-                description_map["gcm_radius_next_at_eighth"].push_back(i);
-                description_map["gcm_radius_next_at_eighth_x"].push_back(i);
+                // description_map["gcm_radius_next_at_eighth"].push_back(next_midget_central_cone);
+                // description_map["gcm_radius_next_at_eighth_x"].push_back(i);
 
                 description_map["gc_external_radius_at_eighth"].push_back(ganglionarExternalRadius);
                 description_map["gc_external_radius_at_eighth_x"].push_back(i);
+                description_map["gc_external_radius_at_eighth_deg"].push_back(midget_angular_pose);
 
                 description_map["gc_midget_angular_eighth_pose"].push_back(midget_angular_pose);
                 description_map["gc_midget_angular_eighth_pose_x"].push_back(i);
 
                 description_map["gc_midget_cone_eighth_pose"].push_back(midget_central_cone);
                 description_map["gc_midget_cone_eighth_pose_x"].push_back(i);
+                description_map["gc_midget_cone_eighth_pose_deg"].push_back(midget_angular_pose);
             }
             else if (j == cellsArrayHeight / 2)
             {
                 description_map["gc_external_radius_at_half"].push_back(ganglionarExternalRadius);
                 description_map["gc_external_radius_at_half_x"].push_back(i);
+                description_map["gc_external_radius_at_half_deg"].push_back(midget_angular_pose);
 
                 description_map["gc_midget_angular_half_pose"].push_back(midget_angular_pose);
                 description_map["gc_midget_angular_half_pose_x"].push_back(i);
 
                 description_map["gc_midget_cone_half_pose"].push_back(midget_central_cone);
                 description_map["gc_midget_cone_half_pose_x"].push_back(i);
+                description_map["gc_midget_cone_half_pose_deg"].push_back(midget_angular_pose);
+
+                description_map["gcm_density"].push_back(midgetGCells.midgetCellsDensityByDeg2(midget_angular_pose));
+                description_map["cone_density"].push_back(cone_model_ptr_->getDensityAt(midget_angular_pose));
+                description_map["gcm_cone_ratio"].push_back(midgetGCells.midgetCellsDensityByDeg2(midget_angular_pose) / cone_model_ptr_->getDensityAt(midget_angular_pose));
+                description_map["gcm_density_deg"].push_back(midget_angular_pose);
             }
             // //Display stuff
             // if (j == cellsArrayHeight / 2)
@@ -336,10 +346,34 @@ std::vector<Ganglionar> RetinaCuda::initGanglionarCells(int conesWidth, int cone
     plt::legend();
 
     plt::figure();
+    plt::named_plot("GC ext radius 1/8th", description_map["gc_external_radius_at_eighth_deg"], description_map["gc_external_radius_at_eighth"]);
+    plt::named_plot("GC ext radius 1/2th", description_map["gc_external_radius_at_half_deg"], description_map["gc_external_radius_at_half"]);
+    plt::title("Ganglionar cells radius (deg)");
+    plt::legend();
+
+    plt::figure();
     plt::named_plot("GCm cone center 1/8th", description_map["gc_midget_cone_eighth_pose_x"], description_map["gc_midget_cone_eighth_pose"]);
     plt::named_plot("GCm cone center 1/2th", description_map["gc_midget_cone_half_pose_x"], description_map["gc_midget_cone_half_pose"]);
     plt::title("Ganglionar cells cone center");
     plt::legend();
+
+    plt::figure();
+    plt::named_plot("GCm cone center 1/8th", description_map["gc_midget_cone_eighth_pose_deg"], description_map["gc_midget_cone_eighth_pose"]);
+    plt::named_plot("GCm cone center 1/2th", description_map["gc_midget_cone_half_pose_deg"], description_map["gc_midget_cone_half_pose"]);
+    plt::title("Ganglionar cells cone center (deg)");
+    plt::legend();
+
+    plt::figure();
+    plt::named_plot("GCm density 1/2th", description_map["gcm_density_deg"], description_map["gcm_density"]);
+    plt::named_plot("Cone density at 1/2th", description_map["gcm_density_deg"], description_map["cone_density"]);
+    plt::title("GCm vs Cone densities (deg)");
+    plt::legend();
+
+    plt::figure();
+    plt::named_plot("GCm cone ratio 1/2th", description_map["gcm_density_deg"], description_map["gcm_cone_ratio"]);
+    plt::title("GCm / Cone ratio (deg)");
+    plt::legend();
+
     plt::show();
 #endif
 
@@ -528,6 +562,13 @@ void RetinaCuda::initCone(int inputWidth, int inputHeight)
                     description_map["pixel_index"].push_back(pixel_index);
                     description_map["pixel_index_x"].push_back(i);
                 }
+                else if (j == coneHeight / 2)
+                {
+                    double angular_pose = cone_model_ptr_->getConeAngularPose(r);
+                    description_map["cone_index_at_half"].push_back(cone_model_ptr_->getConeIndex(angular_pose));
+                    description_map["cone_index_at_half_x"].push_back(i);
+                    description_map["cone_index_at_half_deg"].push_back(angular_pose);
+                }
                 // //Display stuff
                 // if(j == coneHeight/2){
                 //     cv::Vec3b red = cv::Vec3b(255,0,0);
@@ -547,6 +588,15 @@ void RetinaCuda::initCone(int inputWidth, int inputHeight)
     plt::title("Cone pixel index");
     plt::legend();
     //
+    plt::figure();
+    plt::named_plot("Cone index 1/2th", description_map["cone_index_at_half_x"], description_map["cone_index_at_half"]);
+    plt::title("Cone index");
+    plt::legend();
+
+    plt::figure();
+    plt::named_plot("Cone index 1/2th", description_map["cone_index_at_half_deg"], description_map["cone_index_at_half"]);
+    plt::title("Cone index (deg)");
+    plt::legend();
 
 #endif
 

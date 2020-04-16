@@ -12,6 +12,12 @@
 namespace gpu{
 /// Kernels ///
 
+#define POLAR_PIXEL_MAPPING_SIZE 21
+__constant__ int PolarPixelXMappingE[POLAR_PIXEL_MAPPING_SIZE] = {0,1,0,-1,0,1,-1,-1,1,2,0,-2,0,2,1,-1,-2,-2,-1,1,2};
+__constant__ int PolarPixelYMappingE[POLAR_PIXEL_MAPPING_SIZE] = {0,0,1,0,-1,1,1,-1,-1,0,2,0,-2,1,2,2,1,1,-2,-2,-1};
+constexpr  float MaxPolarRadiusSquared = 2.0*2.0+1.0;
+constexpr float UnitArea = 3.14*0.5*0.5;
+constexpr float ConeRadiusSquared = 0.5*0.5;
 
 Ganglionar* loadCellsArrayToGPU(Ganglionar* cellsArrayHost, int width, int height){
     //calcul de la taille des matrices
@@ -152,8 +158,8 @@ __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda
     int x = cell.center_x;
     int y = cell.center_y;
 
-    int in_radius_squarred = cell.intern_radius*cell.intern_radius;
-    int ex_radius_squarred = cell.extern_radius*cell.extern_radius;
+    float in_radius_squarred = cell.intern_radius*cell.intern_radius;
+    float ex_radius_squarred = cell.extern_radius*cell.extern_radius;
 
     int xi;
     int yi;
@@ -164,14 +170,45 @@ __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda
     int nbCenter = 0;
     int nbOut = 0;
 
-    if(ex_radius_squarred <= 1){
+    if(ex_radius_squarred < ConeRadiusSquared){
         if(cell.type == GC_RESPONSE_TYPE::ON){
             value_center += imgSrc(y,x);
         }else{
             value_center -= imgSrc(y,x);
         }
         nbCenter = 1;
-    }else{
+        imgDst(ydst,xdst)= 10;
+        return;
+    }else if(ex_radius_squarred <MaxPolarRadiusSquared){
+
+        // If the kernel are too small, use polar loop
+        int inside_cones = in_radius_squarred/ConeRadiusSquared;
+        int all_cones = ex_radius_squarred/ConeRadiusSquared;
+
+        int cone_index = 0;
+        while(cone_index<inside_cones){
+            if(cell.type == GC_RESPONSE_TYPE::ON){
+                value_center += imgSrc(y+PolarPixelYMappingE[cone_index],x+PolarPixelXMappingE[cone_index]);
+            }else{
+                value_center -= imgSrc(y+PolarPixelYMappingE[cone_index],x+PolarPixelXMappingE[cone_index]);
+            }
+            nbCenter++;
+            cone_index++;
+        };
+
+        while(cone_index<all_cones){
+            if(cell.type == GC_RESPONSE_TYPE::ON){
+                value_ext -= imgSrc(y+PolarPixelYMappingE[cone_index],x+PolarPixelXMappingE[cone_index]);
+            }else{
+                value_ext += imgSrc(y+PolarPixelYMappingE[cone_index],x+PolarPixelXMappingE[cone_index]);
+            }
+            nbOut++;
+            cone_index++;
+        };
+
+    }
+    else{
+        ////////////
         for(xi=-cell.extern_radius; xi <= cell.extern_radius; xi++){
             for(yi=-cell.extern_radius; yi <= cell.extern_radius; yi++){
                 if(x+xi>0 && x+xi<nbcols && y+yi>0 && y+yi<nbrows){
@@ -197,6 +234,7 @@ __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda
                 }
             }
         }
+
     }
 
     int total_value;

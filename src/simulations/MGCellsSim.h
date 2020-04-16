@@ -27,7 +27,7 @@ public:
         max_model_ecc_ = 80; // The model fonction has been made to go up to 80°
 
         std::function<double(double)> midget_density_function = [this](double ecc_deg) { return midgetCellsDensityByDeg2(ecc_deg); };
-        auto midget_density_by_deg2 = interp_utils::buildGraph(midget_density_function, 0.0, max_model_ecc_, 0.5);
+        auto midget_density_by_deg2 = interp_utils::buildGraph(midget_density_function, 0.0, max_model_ecc_, 0.01);
         midget_linear_density_integral_ = interp_utils::computeLinearDensityIntegral<double>(midget_density_by_deg2);
     }
 

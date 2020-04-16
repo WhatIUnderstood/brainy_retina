@@ -57,9 +57,9 @@ ROOT_DIR=$SCRIPT_DIR/..
 DOCKER_IMG_DOCKERFILE_ABS=$ROOT_DIR/$DOCKER_IMG_DOCKERFILE
 DOCKER_CONTEXT_PATH_ABS=$ROOT_DIR/$DOCKER_CONTEXT_PATH
 
-DOCK_OPT_DISPLAY_EXEC=" -e DISPLAY=$DISPLAY --net=host --env='DISPLAY' -w $ROOT_DIR"
+DOCK_OPT_DISPLAY_EXEC=" -e DISPLAY=$DISPLAY  --env='DISPLAY' -w $ROOT_DIR"
 
-DOCK_OPT_DISPLAY_RUN=$DOCK_OPT_DISPLAY_EXEC" -v /tmp/.X11-unix:/tmp/.X11-unix --runtime=nvidia -v $ROOT_DIR:$ROOT_DIR --security-opt seccomp=unconfined $OPTS"
+DOCK_OPT_DISPLAY_RUN=$DOCK_OPT_DISPLAY_EXEC" -v /tmp/.X11-unix:/tmp/.X11-unix --runtime=nvidia --net=host -v $ROOT_DIR:$ROOT_DIR --security-opt seccomp=unconfined $OPTS"
 
 # If the container should not be persistent, add --rm option
 if [[ ! $PERSISTENT ]]
