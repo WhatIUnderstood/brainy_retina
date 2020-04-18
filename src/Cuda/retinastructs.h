@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <cmath>
 
 constexpr int BLOCK_SIZE = 32;
 
@@ -42,9 +43,18 @@ struct Cones
     int height = 0;
 };
 
+struct GanglionarCells
+{
+    std::vector<Ganglionar> gcells;
+    int width = 0;
+    int height = 0;
+};
+
 struct Point
 {
     Point(int x, int y) : x(x), y(y) {}
     int x;
     int y;
 };
+
+constexpr double UNIT_DISK_SURFACE = M_PI * 0.5 * 0.5;

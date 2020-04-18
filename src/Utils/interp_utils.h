@@ -1,7 +1,7 @@
 #pragma once
 #include <vector>
 #include <cmath>
-#include <exception>
+#include <stdexcept>
 
 template <typename Floating,
           typename = std::enable_if_t<std::is_floating_point<Floating>::value>>
@@ -26,7 +26,7 @@ namespace interp_utils
  */
 template <typename Floating,
           typename = std::enable_if_t<std::is_floating_point<Floating>::value>>
-inline Floating lin_interp(const Floating &x, const std::vector<Floating> x_values, const std::vector<Floating> y_values, double left, double right)
+Floating lin_interp(const Floating &x, const std::vector<Floating> x_values, const std::vector<Floating> y_values, double left, double right)
 {
     if (x_values.empty())
     {
@@ -76,14 +76,14 @@ inline Floating lin_interp(const Floating &x, const std::vector<Floating> x_valu
 
 template <typename Floating,
           typename = std::enable_if_t<std::is_floating_point<Floating>::value>>
-inline Floating lin_interp(const Floating &x, const std::vector<Floating> x_values, const std::vector<Floating> y_values)
+Floating lin_interp(const Floating &x, const std::vector<Floating> x_values, const std::vector<Floating> y_values)
 {
-    lin_interp(x, x_values, y_values, x_values.front(), x_values.back());
+    return lin_interp(x, x_values, y_values, x_values.front(), x_values.back());
 }
 
 template <typename Floating,
           typename = std::enable_if_t<std::is_floating_point<Floating>::value>>
-inline std::vector<Floating> lin_interp_integral(const std::vector<Floating> x_values, const std::vector<Floating> y_values)
+std::vector<Floating> lin_interp_integral(const std::vector<Floating> x_values, const std::vector<Floating> y_values)
 {
     typename std::vector<Floating> integral;
     integral.push_back(0);
@@ -102,7 +102,7 @@ inline std::vector<Floating> lin_interp_integral(const std::vector<Floating> x_v
 
 template <typename FUNCTION, typename Floating,
           typename = std::enable_if_t<std::is_floating_point<Floating>::value>>
-inline Graph<Floating> buildGraph(FUNCTION function_callback, Floating from_x, Floating to_x, Floating step_x)
+Graph<Floating> buildGraph(FUNCTION function_callback, Floating from_x, Floating to_x, Floating step_x)
 {
     Graph<Floating> graph;
     Floating current_x = from_x;

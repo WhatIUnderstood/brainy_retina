@@ -135,6 +135,7 @@ int main(int argc, char *argv[])
 
     cv::namedWindow("Camera input", cv::WINDOW_NORMAL);
     cv::namedWindow("Cones output", cv::WINDOW_NORMAL);
+    cv::namedWindow("Midget Ganglionar cells responses", cv::WINDOW_NORMAL);
 
     // Create a colormap to display ganglionar cell response
     auto color_mapping = colormap::mirrorColorMap(colormap::reverseColorMap(colormap::buildColorMap(colormap::COLORMAP_TYPE::BLUE_GREEN_RED)));
@@ -213,10 +214,9 @@ int main(int argc, char *argv[])
             {
                 cv::cvtColor(frameRetina, cv_cm_img0, cv::COLOR_GRAY2RGB);
                 cv::LUT(cv_cm_img0, lut, cv_cm_img0);
-                std::cout << "color_map_img.cols: " << color_map_img.cols << "x" << color_map_img.rows << " " << cv_cm_img0.cols << ":" << cv_cm_img0.rows << std::endl;
                 color_map_img.copyTo(cv_cm_img0(cv::Rect(0, 0, color_map_img.cols, color_map_img.rows)));
 
-                cv::imshow("GC output" + std::to_string(cv_cm_img0.cols) + "x" + std::to_string(cv_cm_img0.rows), cv_cm_img0); //show the frame in "MyVideo" window
+                cv::imshow("Midget Ganglionar cells responses", cv_cm_img0); //show the frame in "MyVideo" window
             }
 
             if (frameSelectiveRetina.cols > 0)
@@ -318,4 +318,4 @@ cv::Mat buildColorMap2()
     cv ::Mat lut; // Créer une table de recherche
     cv::merge(channels, 3, lut);
     return lut;
-};
+}

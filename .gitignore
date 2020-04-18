@@ -39,3 +39,7 @@ build/*
 *build
 tmp
 *.user.*
+
+
+.vscode
+videos

@@ -42,7 +42,7 @@ inline ColorMap buildColorMap(COLORMAP_TYPE type)
     }
 }
 
-inline cv::Mat buildColorMapImage(cv::Mat lut, int width, int height)
+inline cv::Mat buildColorMapImage(cv::Mat lut, unsigned int width, unsigned int height)
 {
     cv::Mat color_map(height, width, CV_8UC3);
     for (unsigned int i = 0; i < width; i++)

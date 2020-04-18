@@ -9,8 +9,6 @@
 #include "opencv2/core/cuda.hpp"
 #include "Cuda/cuda_image.h"
 
-#include "cuda_arrays.h"
-
 namespace gpu
 {
 
@@ -23,7 +21,7 @@ void photoreceptorSampling3C(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrSt
 void multiConvolve(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Ganglionar *cellsArrayGPU, int cellsArrayWidth, int cellsArrayHeight, cudaStream_t stream);
 void directionSelectiveComputation(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, cv::cuda::PtrStepSz<u_char> imgPrev, Point *directiveMappingSrc, Point *directiveMappingDst, int directiveMappingSize, cudaStream_t stream);
 
-void sparse(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, GpuBitArray2D &imgDst, unsigned char minval, unsigned char maxVal, cudaStream_t stream);
+//void sparse(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, GpuBitArray2D &imgDst, unsigned char minval, unsigned char maxVal, cudaStream_t stream);
 
 void discretise(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, cv::cuda::PtrStepSz<u_char> imgDst, unsigned char minval, unsigned char maxVal, cudaStream_t stream);
 } // namespace gpu

@@ -7,6 +7,9 @@ set(CudaRetina_PATCH_VERSION 0)
 set(CudaRetina_VERSION
   ${CudaRetina_MAJOR_VERSION}.${CudaRetina_MINOR_VERSION}.${CudaRetina_PATCH_VERSION})
 
+# lots of warnings and all warnings as errors
+add_compile_options(-Wall -Wextra -pedantic ) #-Werror
+
 # Setup default installation directory
 if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     set (CMAKE_INSTALL_PREFIX /opt/gpuretina CACHE PATH "default install path" FORCE )
@@ -73,7 +76,7 @@ TARGET_LINK_LIBRARIES(gpuretina ${CUDA_LIBRARIES} ${OpenCV_LIBRARIES})
 option(WITH_MATPLOTLIB "use matplotlib to display graphs" OFF)
 if(WITH_MATPLOTLIB)
   find_package(PythonLibs 2.7)
-  target_include_directories(gpuretina PRIVATE ${PYTHON_INCLUDE_DIRS})
+  target_include_directories(gpuretina SYSTEM PRIVATE ${PYTHON_INCLUDE_DIRS})
   target_link_libraries(gpuretina ${PYTHON_LIBRARIES})
 
   add_definitions(-DWITH_MATPLOTLIB)
@@ -95,7 +98,7 @@ endif()
 
 ENDMACRO(INSTALL_HEADERS_WITH_DIRECTORY)
 
-set(HS "src/retinacuda.h;src/Cuda/retinastructs.h;src/Cuda/cuda_arrays.h;src/Cuda/declaration_helper.cuh")
+set(HS "src/retinacuda.h;src/Cuda/retinastructs.h;src/Cuda/declaration_helper.cuh")
 
 INSTALL_HEADERS_WITH_DIRECTORY(HS "src/" "include/gpuretina")
 

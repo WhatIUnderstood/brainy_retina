@@ -16,7 +16,7 @@ namespace gpu{
 __constant__ int PolarPixelXMappingE[POLAR_PIXEL_MAPPING_SIZE] = {0,1,0,-1,0,1,-1,-1,1,2,0,-2,0,2,1,-1,-2,-2,-1,1,2};
 __constant__ int PolarPixelYMappingE[POLAR_PIXEL_MAPPING_SIZE] = {0,0,1,0,-1,1,1,-1,-1,0,2,0,-2,1,2,2,1,1,-2,-2,-1};
 constexpr  float MaxPolarRadiusSquared = 2.0*2.0+1.0;
-constexpr float UnitArea = 3.14*0.5*0.5;
+//constexpr float UnitArea = 3.14*0.5*0.5;
 constexpr float ConeRadiusSquared = 0.5*0.5;
 
 Ganglionar* loadCellsArrayToGPU(Ganglionar* cellsArrayHost, int width, int height){
@@ -112,7 +112,7 @@ __global__ void photoreceptorSamplingKernel3C(cv::cuda::PtrStepSz<uchar3> imgSrc
     if(cone.type == PHOTO_TYPE::NONE){
         return;
     }
-    int x = cone.center_x;
+    int x =  cone.center_x;
     int y = cone.center_y;
 
     uchar3 pixel = imgSrc(y,x);
@@ -414,51 +414,51 @@ __global__ void directionSelectiveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv:
 }
 
 
-__global__ void sparseKernel(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, char * imgDst, unsigned char min, unsigned char max){
-    // Get our global thread ID
-    int xdst = blockIdx.x*blockDim.x +threadIdx.x;
-    int ydst = blockIdx.y*blockDim.y+threadIdx.y;
+// __global__ void sparseKernel(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, char * imgDst, unsigned char min, unsigned char max){
+//     // Get our global thread ID
+//     int xdst = blockIdx.x*blockDim.x +threadIdx.x;
+//     int ydst = blockIdx.y*blockDim.y+threadIdx.y;
 
-    unsigned char sliceSize = 255/depth;
-    unsigned char val = imgSrc(ydst,xdst);
+//     unsigned char sliceSize = 255/depth;
+//     unsigned char val = imgSrc(ydst,xdst);
 
-    if(val>max){
-        val=max;
-    }else if(val<min){
-        val = min;
-    }else{
-        val = (val-min)/(float)(max-min)*255;
-    }
+//     if(val>max){
+//         val=max;
+//     }else if(val<min){
+//         val = min;
+//     }else{
+//         val = (val-min)/(float)(max-min)*255;
+//     }
 
-    unsigned char nbBytes = depth/8;
-
-
-    //char amplitude = val/((float)sliceSize);
-    //char extra = val % sliceSize;
-
-    unsigned char* firstSparseData = (unsigned char*)&(imgDst[(xdst+ydst*imgSrc.cols)*depth/8]);
-    int current_byte = nbBytes-1;
-    unsigned char* currentSparseData = &(firstSparseData[current_byte]);
-
-    unsigned char tempData = 0;
-    for(unsigned int i=0; i<depth ;i++ ){
-        if(i != 0 && i%8 == 0){
-            *currentSparseData = tempData;
-            current_byte--;
-            currentSparseData = &(firstSparseData[current_byte]);
-            tempData = 0;
-        }
+//     unsigned char nbBytes = depth/8;
 
 
-        if(val>sliceSize*i){
-            tempData |= 1<<i%8; //Set to true
-        }else{
-            //tempData &= !(1<<i%8); //Set to false
-        }
-    }
+//     //char amplitude = val/((float)sliceSize);
+//     //char extra = val % sliceSize;
 
-    *currentSparseData = (char)tempData;
-}
+//     unsigned char* firstSparseData = (unsigned char*)&(imgDst[(xdst+ydst*imgSrc.cols)*depth/8]);
+//     int current_byte = nbBytes-1;
+//     unsigned char* currentSparseData = &(firstSparseData[current_byte]);
+
+//     unsigned char tempData = 0;
+//     for(unsigned int i=0; i<depth ;i++ ){
+//         if(i != 0 && i%8 == 0){
+//             *currentSparseData = tempData;
+//             current_byte--;
+//             currentSparseData = &(firstSparseData[current_byte]);
+//             tempData = 0;
+//         }
+
+
+//         if(val>sliceSize*i){
+//             tempData |= 1<<i%8; //Set to true
+//         }else{
+//             //tempData &= !(1<<i%8); //Set to false
+//         }
+//     }
+
+//     *currentSparseData = (char)tempData;
+// }
 
 __global__ void discretiseKernel(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, cv::cuda::PtrStepSz<u_char> imgDst, unsigned char min, unsigned char max){
     // Get our global thread ID
@@ -623,19 +623,19 @@ void directionSelectiveComputation(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda:
 
 }
 
-void sparse(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, GpuBitArray2D& imgDst, unsigned char minval, unsigned char maxVal, cudaStream_t stream){
-    dim3 grid, block;
-    imgDst.resize(imgSrc.cols*depth,imgSrc.rows);
+// void sparse(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, GpuBitArray2D& imgDst, unsigned char minval, unsigned char maxVal, cudaStream_t stream){
+//     dim3 grid, block;
+//     imgDst.resize(imgSrc.cols*depth,imgSrc.rows);
 
-    // Number of threads in each thread block
-    block.x = BLOCK_SIZE;
-    block.y = BLOCK_SIZE;
+//     // Number of threads in each thread block
+//     block.x = BLOCK_SIZE;
+//     block.y = BLOCK_SIZE;
 
-    grid.x = (int)ceil((float)(imgSrc.cols)/block.x);
-    grid.y = (int)ceil((float)(imgSrc.rows)/block.y);
+//     grid.x = (int)ceil((float)(imgSrc.cols)/block.x);
+//     grid.y = (int)ceil((float)(imgSrc.rows)/block.y);
 
-    sparseKernel<<<grid, block>>>(imgSrc, depth, imgDst.data(),minval,maxVal);
-}
+//     sparseKernel<<<grid, block>>>(imgSrc, depth, imgDst.data(),minval,maxVal);
+// }
 
 void discretise(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, cv::cuda::PtrStepSz<u_char>  imgDst, unsigned char minval, unsigned char maxVal, cudaStream_t stream){
     dim3 grid, block;
