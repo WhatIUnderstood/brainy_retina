@@ -148,8 +148,6 @@ add_custom_target(headers SOURCES ${ALL_HEADERS_H} ${ALL_HEADERS_CUH})
 # (this registers the build-tree with a global CMake-registry)
 #export(PACKAGE gpuretina)
 
-#change variable to be absolute
-
 
 # Create the FooBarConfig.cmake and FooBarConfigVersion files
 file(RELATIVE_PATH REL_INCLUDE_DIR "${INSTALL_CMAKE_DIR}"

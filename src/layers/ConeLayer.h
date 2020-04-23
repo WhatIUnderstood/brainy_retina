@@ -57,14 +57,10 @@ public:
         //Default model
         for (int j = 0; j < cone_height; j++)
         {
-            //bool beginLine = false;
             for (int i = 0; i < cone_width; i++)
             {
-                //int linearReduction = 6;
                 r = sqrt((cone_width / 2.0 - i) * (cone_width / 2.0 - i) + (cone_height / 2.0 - j) * (cone_height / 2.0 - j));
 
-                //ganglionarExternalRadius = cone_coverage(r);
-                //ganglionarInternalRadius = MAX(1.0,ganglionarExternalRadius/2.0);
                 cv::Vec2f direction = polar_utils::getDirectionFromCenter(cv::Point(i, j), cv::Size(cone_width, cone_height));
                 double cone_angular_pose = cone_model_ptr_->getEccentricityAt(r);
                 double pixel_index = pixel_model_ptr_->getIndexAt(cone_angular_pose);

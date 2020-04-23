@@ -3,12 +3,12 @@
 #include <cuda.h>
 #include <stdlib.h>
 #include <math.h>
+#include "cuda_runtime.h"
+#include "Cuda/cuda_retina_kernels.cuh"
+
 #include <opencv2/core/cuda_types.hpp>
 #include <opencv2/core/cuda_stream_accessor.hpp>
 #include <opencv2/core/cuda.hpp>
-#include "Cuda/cuda_image.h"
-#include "cuda_runtime.h"
-#include "Cuda/cuda_retina_kernels.cuh"
 
 #include "data/data.h"
 #include "Utils/interp_utils.h"
@@ -20,6 +20,7 @@
 
 #include "layers/ConeLayer.h"
 #include "layers/MGCellLayer.h"
+#include "layers/PGCellLayer.h"
 
 #ifdef WITH_MATPLOTLIB
 #include "matplotlib_cpp/matplotlibcpp.h"
@@ -47,7 +48,8 @@ private:
 
 RetinaCuda::RetinaCuda(int gpu)
 {
-    gpuCells = 0;
+    gpuMCells = 0;
+    gpuPCells = 0;
 
     int count;
     cudaError_t err = cudaGetDeviceCount(&count);
@@ -77,39 +79,55 @@ RetinaCuda::~RetinaCuda()
 void RetinaCuda::initRetina(Parameters param)
 {
     parameters = param;
-    midget_gc_ramp_.initial_value = param.gc_fovea_inter_cells_distance;
-    midget_gc_ramp_.final_value = param.gc_max_inter_cells_distance;
-    midget_gc_ramp_.transitional_start = param.gc_fovea_radius;
-    midget_gc_ramp_.transitional_end = param.gc_max_cones_by_cell_radius;
 
-    midget_gc_field_ramp_.initial_value = param.gc_fovea_cones_by_cell;
-    midget_gc_field_ramp_.final_value = param.gc_max_cones_by_cell;
-    midget_gc_field_ramp_.transitional_start = param.gc_fovea_radius;
-    midget_gc_field_ramp_.transitional_end = param.gc_max_cones_by_cell_radius;
+    GCellsModel::GCellsDensityParams gc_density_params;
+    gc_density_params.a = 0.9729;
+    gc_density_params.r2 = 1.084;
+    gc_density_params.re = 7.633;
+    gc_density_params.max_cone_density = 14804;
 
-    pixel_per_cone_ramp_.initial_value = param.ph_fovea_pixels_by_cone;
-    pixel_per_cone_ramp_.final_value = param.ph_max_pixels_by_cone;
-    pixel_per_cone_ramp_.transitional_start = param.ph_fovea_radius;
-    pixel_per_cone_ramp_.transitional_end = param.ph_max_pixels_by_cone_radius;
+    MGCellsSim::MGCellsDensityParams mgc_density_params;
+    mgc_density_params.gc_params = gc_density_params;
+    mgc_density_params.rm = 41.03;
 
-    MGCellsSim::MGCellsConfig mgc_config;
-    mgc_config.density_params.a = 0.9729;
-    mgc_config.density_params.r2 = 1.084;
-    mgc_config.density_params.re = 7.633;
-    mgc_config.density_params.rm = 41.03;
-    mgc_config.density_params.max_cone_density = 14804;
-
+    std::cout << "Initializing cone model ..." << std::endl;
     std::unique_ptr<ConeModel> cone_model_ptr = std::make_unique<ConeModel>(parameters.ph_config);
+    std::cout << "Initializing pixel model ..." << std::endl;
     std::unique_ptr<PixelConeModel> pixel_model_ptr = std::make_unique<PixelConeModel>(parameters.pix_config);
-    std::unique_ptr<MGCellsSim> mgc_model_ptr = std::make_unique<MGCellsSim>(mgc_config);
+    std::cout << "Initializing midget model ..." << std::endl;
+    std::unique_ptr<MGCellsSim> mgc_model_ptr = std::make_unique<MGCellsSim>(mgc_density_params);
+    std::cout << "Initializing parasol model ..." << std::endl;
+    std::unique_ptr<PGCellsModel> pgc_model_ptr = std::make_unique<PGCellsModel>(mgc_density_params);
 
+    std::cout << "Building cone layer ..." << std::endl;
     cone_layer_ptr_ = std::make_unique<ConeLayer>(cone_model_ptr, pixel_model_ptr, parameters.random_seed);
+    std::cout << "Building midget layer ..." << std::endl;
     mgcells_layer_ptr_ = std::make_unique<MGCellLayer>(mgc_model_ptr, *cone_layer_ptr_, parameters.random_seed);
+    std::cout << "Building parasol layer ..." << std::endl;
+    pgcells_layer_ptr_ = std::make_unique<PGCellLayer>(pgc_model_ptr, *cone_layer_ptr_, parameters.random_seed);
 
     initPhotoGpu(cone_layer_ptr_->cones());
-    initCellsGpu(mgcells_layer_ptr_->mgcells());
+    initMCellsGpu(mgcells_layer_ptr_->mgcells());
+    initPCellsGpu(pgcells_layer_ptr_->pgcells());
 
     initSelectiveCells();
+}
+
+void RetinaCuda::plotLayersInfos()
+{
+    if (cone_layer_ptr_)
+    {
+        cone_layer_ptr_->plotGraphs();
+    }
+    if (mgcells_layer_ptr_)
+    {
+        mgcells_layer_ptr_->plotGraphs();
+    }
+    if (pgcells_layer_ptr_)
+    {
+        pgcells_layer_ptr_->plotGraphs();
+    }
+    plt::show();
 }
 
 std::vector<Point> RetinaCuda::initSelectiveCells()
@@ -205,13 +223,23 @@ void RetinaCuda::applyPhotoreceptorSampling(cv::cuda::GpuMat &imgSrc, cv::cuda::
     }
 }
 
-bool RetinaCuda::initCellsGpu(const GanglionarCells &mgcells)
+bool RetinaCuda::initMCellsGpu(const GanglionarCells &mgcells)
 {
-    if (cudaMalloc((void **)&gpuCells, sizeof(Ganglionar) * mgcells.gcells.size()) != cudaError_t::cudaSuccess)
+    if (cudaMalloc((void **)&gpuMCells, sizeof(Ganglionar) * mgcells.gcells.size()) != cudaError_t::cudaSuccess)
     {
         return false;
     }
-    cudaMemcpy(gpuCells, mgcells.gcells.data(), sizeof(Ganglionar) * mgcells.gcells.size(), cudaMemcpyHostToDevice);
+    cudaMemcpy(gpuMCells, mgcells.gcells.data(), sizeof(Ganglionar) * mgcells.gcells.size(), cudaMemcpyHostToDevice);
+    return true;
+}
+
+bool RetinaCuda::initPCellsGpu(const GanglionarCells &pgcells)
+{
+    if (cudaMalloc((void **)&gpuPCells, sizeof(Ganglionar) * pgcells.gcells.size()) != cudaError_t::cudaSuccess)
+    {
+        return false;
+    }
+    cudaMemcpy(gpuPCells, pgcells.gcells.data(), sizeof(Ganglionar) * pgcells.gcells.size(), cudaMemcpyHostToDevice);
     return true;
 }
 
@@ -253,7 +281,25 @@ void RetinaCuda::applyParvoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst
         imgDst.setTo(0);
     }
 
-    gpu::multiConvolve(imgSrc, imgDst, gpuCells, mgcells_layer_ptr_->mgcells().width, mgcells_layer_ptr_->mgcells().height, cudaStreamDefault);
+    gpu::multiConvolve(imgSrc, imgDst, gpuMCells, mgcells_layer_ptr_->mgcells().width, mgcells_layer_ptr_->mgcells().height, cudaStreamDefault);
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        std::cerr << "Error: " << cudaGetErrorString(err) << " (you may have incorrect arch in cmake)" << std::endl;
+        exit(1);
+    }
+}
+
+void RetinaCuda::applyMagnoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst)
+{
+    //imgDst
+    if (imgDst.cols != pgcells_layer_ptr_->pgcells().width || imgDst.rows != pgcells_layer_ptr_->pgcells().height)
+    {
+        imgDst.create(pgcells_layer_ptr_->pgcells().height, pgcells_layer_ptr_->pgcells().width, CV_8UC1);
+        imgDst.setTo(0);
+    }
+
+    gpu::multiConvolve(imgSrc, imgDst, gpuPCells, pgcells_layer_ptr_->pgcells().width, pgcells_layer_ptr_->pgcells().height, cudaStreamDefault);
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess)
     {

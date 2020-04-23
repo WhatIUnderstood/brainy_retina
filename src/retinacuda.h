@@ -17,6 +17,7 @@
 
 class ConeLayer;
 class MGCellLayer;
+class PGCellLayer;
 
 /**
  * @brief Class performing retina processing from a camera input
@@ -33,25 +34,6 @@ public:
 
         ConeModelConfig ph_config;
         PixelConeModelConfig pix_config;
-
-        //Photoreceptor params
-        double ph_fovea_radius; //radius in pixels that are inside the fovea. 60M cones in human fovea
-        double ph_fovea_pixels_by_cone;
-        double ph_max_pixels_by_cone;
-        double ph_max_pixels_by_cone_radius;
-        float ph_S_cone_ratio = 0;
-        float ph_M_cone_ratio = 0;
-        float ph_L_cone_ratio = 0;
-
-        //Ganglionar params
-        double gc_fovea_radius;
-        double gc_fovea_cones_by_cell;
-        double gc_midget_fovea_cones_by_cell;
-        double gc_parasol_fovea_cones_by_cell;
-        double gc_fovea_inter_cells_distance;
-        double gc_max_cones_by_cell;
-        double gc_max_cones_by_cell_radius;
-        double gc_max_inter_cells_distance;
 
         int random_seed = 0;
     };
@@ -74,6 +56,8 @@ public:
     ///
     void applyParvoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
 
+    void applyMagnoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
+
     ///
     /// \brief
     /// \param imgSrc
@@ -84,6 +68,7 @@ public:
 
     // Utils
     cv::Mat drawConeMap();
+    void plotLayersInfos();
 
     //Test
     void discretise(cv::cuda::GpuMat &imgSrc, int vals, cv::cuda::GpuMat &output, unsigned char min_value = 0, unsigned char max_value = 255);
@@ -100,11 +85,14 @@ private:
 
 private:
     bool initPhotoGpu(const Cones &cones);
-    bool initCellsGpu(const GanglionarCells &mgcells);
+    bool initMCellsGpu(const GanglionarCells &mgcells);
+    bool initPCellsGpu(const GanglionarCells &pcells);
     bool initDirectiveGpu(std::vector<Point> photoSrc, std::vector<Point> photoDst);
 
     Cone *gpuCones;
-    Ganglionar *gpuCells;
+    Ganglionar *gpuMCells;
+    Ganglionar *gpuPCells;
+
     Point *d_magnoMappingSrc;
     Point *d_magnoMappingDst;
     int directive_width;
@@ -115,12 +103,7 @@ private:
     std::vector<Point> magnoMappingDst;
     Parameters parameters;
 
-    ramp_utils::RampParameters midget_gc_field_ramp_;
-
-    ramp_utils::RampParameters pixel_per_cone_ramp_;
-    ramp_utils::RampParameters midget_gc_ramp_;
-    ramp_utils::RampParameters parasol_gc_ramp_;
-
     std::unique_ptr<ConeLayer> cone_layer_ptr_;
     std::unique_ptr<MGCellLayer> mgcells_layer_ptr_;
+    std::unique_ptr<PGCellLayer> pgcells_layer_ptr_;
 };

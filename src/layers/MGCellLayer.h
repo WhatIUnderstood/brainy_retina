@@ -70,7 +70,7 @@ public:
                     continue;
                 }
 
-                ganglionarExternalRadius = UNIT_DISK_SURFACE * std::sqrt((cone_density / (mgc_density / 2.0)) / M_PI);
+                ganglionarExternalRadius = std::sqrt(UNIT_DISK_SURFACE * (cone_density / (mgc_density / 2.0)) / M_PI);
                 ganglionarExternalRadius = MAX(0.5, ganglionarExternalRadius);
                 ganglionarInternalRadius = MAX(0.5, 0.33 * ganglionarExternalRadius);
 

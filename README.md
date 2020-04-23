@@ -1,12 +1,13 @@
 # README #
 
-This README would normally document whatever steps are necessary to get your application up and running.
+Retina simulation from digital camera source. The following outputs can be generated from one image:
+- S,M,L cones output.
+- Parvo output by simulating the midget cells outputs
+- Magno output by simulating the parasol cells. Temporal aspects are not yet simulated
 
-### What is this repository for? ###
+This project generate a library that use GPU acceleration by using cuda. No pure CPU support is done for now.
 
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
+If you want more details, check this [what I understood page](https://blog.whatiunderstood.com/pages/artificial_intelligence/sensors/retina/retina_modelisation.html)
 
 ### Build ###
 Requirements:
@@ -26,13 +27,7 @@ cmake ..
 make
 ```
 
-### Contribution guidelines ###
+### Run the example ###
+An example is provided
+`./gpuretina_test -i ../videos/<some_video>.mp4`
 
-* Writing tests
-* Code review
-* Other guidelines
-
-### Who do I talk to? ###
-
-* Repo owner or admin
-* Other community or team contact

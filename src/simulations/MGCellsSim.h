@@ -10,35 +10,34 @@
 #include "Utils/convertion.h"
 
 #include "GenericModel.h"
+#include "GCellsModel.h"
 
 class MGCellsSim : public GenericModel
 {
 public:
     struct MGCellsDensityParams
     {
-        double max_cone_density = 0; // deg2
+        GCellsModel::GCellsDensityParams gc_params;
         double rm;
-        double a;
-        double r2;
-        double re;
     };
 
-    struct MGCellsConfig
+    class MGDensityFunction : public DensityFunction
     {
-        MGCellsDensityParams density_params;
+    public:
+        MGDensityFunction(const MGCellsDensityParams &params) : params(params), gc_density_f_(params.gc_params)
+        {
+        }
+        double at(double ecc_deg) const override
+        {
+            return gc_density_f_.at(ecc_deg) / (1 + ecc_deg / params.rm);
+        }
+
+    private:
+        MGCellsDensityParams params;
+        GCellsModel::GCellsDensityFunction gc_density_f_;
     };
 
-    MGCellsSim(const MGCellsConfig &config) : GenericModel([this, &config](double ecc) { return this->getmGCDensityAt(ecc, config.density_params); }, 0, 80, 0.05)
+    MGCellsSim(const MGCellsDensityParams &params) : GenericModel(std::make_unique<MGDensityFunction>(params), 0, 80, 0.05)
     {
-        config_ = config;
     }
-
-private:
-    double getmGCDensityAt(double ecc_deg, const MGCellsDensityParams &params)
-    {
-        return 2 * params.max_cone_density / (1 + ecc_deg / params.rm) * (params.a * std::pow(1 + ecc_deg / params.r2, -2) + (1 - params.a) * exp(-ecc_deg / params.re));
-    }
-
-private:
-    MGCellsConfig config_;
 };

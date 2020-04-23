@@ -7,8 +7,6 @@
 #include "cuda_runtime_api.h"
 #include "cuda_retina_kernels.cuh"
 
-//#include <opencv/cv.h>
-
 namespace gpu{
 /// Kernels ///
 
@@ -16,7 +14,6 @@ namespace gpu{
 __constant__ int PolarPixelXMappingE[POLAR_PIXEL_MAPPING_SIZE] = {0,1,0,-1,0,1,-1,-1,1,2,0,-2,0,2,1,-1,-2,-2,-1,1,2};
 __constant__ int PolarPixelYMappingE[POLAR_PIXEL_MAPPING_SIZE] = {0,0,1,0,-1,1,1,-1,-1,0,2,0,-2,1,2,2,1,1,-2,-2,-1};
 constexpr  float MaxPolarRadiusSquared = 2.0*2.0+1.0;
-//constexpr float UnitArea = 3.14*0.5*0.5;
 constexpr float ConeRadiusSquared = 0.5*0.5;
 
 Ganglionar* loadCellsArrayToGPU(Ganglionar* cellsArrayHost, int width, int height){
@@ -25,28 +22,10 @@ Ganglionar* loadCellsArrayToGPU(Ganglionar* cellsArrayHost, int width, int heigh
     Ganglionar* cellsArrayDevice;
 
     //allocation des matrices et leur remplissage
-    //cudaMalloc(&cellsArrayDevice, sizeof(Cell*));
     cudaMalloc((void**) &cellsArrayDevice, size);
     cudaMemcpy(cellsArrayDevice, cellsArrayHost, size, cudaMemcpyHostToDevice);
 
-//    for(int i=0; i< 10; i++){
-//       printf("loadCellsArrayToGPU: %i\n",cellsArrayHost[i].center_x);
-//    }
-
     return cellsArrayDevice;
-
-    //TODO
-//    int** a;
-
-//    cudaMalloc(&a, sizeof(int*) * N));
-
-//    int* ha[N];
-
-//    for(int i = 0; i < N; ++i)
-
-//           cudaMalloc(&ha[i],size));
-
-//    cudaMemcpy(a, ha, sizeof(a), cudaMemcpyHostToDevice);
 }
 
 void unloadArray(Ganglionar* cell){
@@ -140,20 +119,12 @@ __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda
     int nbcols = imgSrc.cols;
     int nbrows = imgSrc.rows;
 
-
     Ganglionar cell = cellsArray[(xdst+ydst*cellsArrayWidth)];//%(cellsArrayWidth*cellsArrayHeight)/*(xdst+ydst*cellsArrayWidth)%(cellsArrayWidth*cellsArrayHeight)*/];
 
     if(cell.type == GC_RESPONSE_TYPE::NONE){
         imgDst(ydst,xdst)= 0;
         return;
     }
-
-//    if(xdst+ydst*cellsArrayWidth < 50){
-//        printf(" cell %i: centerx%i \n", xdst+ydst*cellsArrayWidth, cell.center_x);
-
-//    }
-
-
 
     int x = cell.center_x;
     int y = cell.center_y;
@@ -208,18 +179,17 @@ __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda
 
     }
     else{
-        ////////////
         for(xi=-cell.extern_radius; xi <= cell.extern_radius; xi++){
             for(yi=-cell.extern_radius; yi <= cell.extern_radius; yi++){
                 if(x+xi>0 && x+xi<nbcols && y+yi>0 && y+yi<nbrows){
-                    if(xi*xi + yi*yi < in_radius_squarred){//if we are in the radius
+                    if(xi*xi + yi*yi <= in_radius_squarred){//if we are in the radius
                         if(cell.type == GC_RESPONSE_TYPE::ON){
                             value_center += imgSrc(y+yi,x+xi);
                         }else{
                             value_center -= imgSrc(y+yi,x+xi);
                         }
                         nbCenter++;
-                    }else if(xi*xi + yi*yi < ex_radius_squarred){
+                    }else if(xi*xi + yi*yi <= ex_radius_squarred){
                         if(cell.type == GC_RESPONSE_TYPE::ON){
                             value_ext -= imgSrc(y+yi,x+xi);
                         }else{
@@ -229,7 +199,7 @@ __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda
                     }
                 }else{
                     // receptive field outside cone map
-                    imgDst(ydst,xdst)= 254;
+                    imgDst(ydst,xdst)= 255;
                     return;
                 }
             }
@@ -251,11 +221,6 @@ __global__ void multiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda
         //total_value =  (value_center/(float)nbCenter + value_ext/(float)nbOut)/2.0;//*cell.extern_radius;
     }
 
-
-//    float sub = (value_center/(float)nbOn + value_ext/(float)nbOff)/2.0;;
-//    if(xdst ==42 && 42 ==ydst){
-//        printf(" cell value%i %i %i: %f\n", total_value,nbOn,value_center,sub);
-//    }
     if(total_value<0){
         total_value = 0;
     }else if(total_value>255){
@@ -281,12 +246,6 @@ __global__ void legacyMultiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv
     if(cell.type == GC_RESPONSE_TYPE::NONE){
         imgDst(ydst,xdst)= 0;
     }
-//    if(xdst+ydst*cellsArrayWidth < 50){
-//        printf(" cell %i: centerx%i \n", xdst+ydst*cellsArrayWidth, cell.center_x);
-
-//    }
-
-
 
     int x = cell.center_x;
     int y = cell.center_y;
@@ -345,11 +304,6 @@ __global__ void legacyMultiConvolveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv
         total_value = 128 + (value_center/(float)nbCenter + value_ext/(float)nbOut)/2.0;//*cell.extern_radius;
     }
 
-
-//    float sub = (value_center/(float)nbOn + value_ext/(float)nbOff)/2.0;;
-//    if(xdst ==42 && 42 ==ydst){
-//        printf(" cell value%i %i %i: %f\n", total_value,nbOn,value_center,sub);
-//    }
     if(total_value<0){
         total_value = 0;
     }else if(total_value>255){
@@ -413,53 +367,6 @@ __global__ void directionSelectiveKernel(cv::cuda::PtrStepSz<u_char> imgSrc, cv:
 
 }
 
-
-// __global__ void sparseKernel(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, char * imgDst, unsigned char min, unsigned char max){
-//     // Get our global thread ID
-//     int xdst = blockIdx.x*blockDim.x +threadIdx.x;
-//     int ydst = blockIdx.y*blockDim.y+threadIdx.y;
-
-//     unsigned char sliceSize = 255/depth;
-//     unsigned char val = imgSrc(ydst,xdst);
-
-//     if(val>max){
-//         val=max;
-//     }else if(val<min){
-//         val = min;
-//     }else{
-//         val = (val-min)/(float)(max-min)*255;
-//     }
-
-//     unsigned char nbBytes = depth/8;
-
-
-//     //char amplitude = val/((float)sliceSize);
-//     //char extra = val % sliceSize;
-
-//     unsigned char* firstSparseData = (unsigned char*)&(imgDst[(xdst+ydst*imgSrc.cols)*depth/8]);
-//     int current_byte = nbBytes-1;
-//     unsigned char* currentSparseData = &(firstSparseData[current_byte]);
-
-//     unsigned char tempData = 0;
-//     for(unsigned int i=0; i<depth ;i++ ){
-//         if(i != 0 && i%8 == 0){
-//             *currentSparseData = tempData;
-//             current_byte--;
-//             currentSparseData = &(firstSparseData[current_byte]);
-//             tempData = 0;
-//         }
-
-
-//         if(val>sliceSize*i){
-//             tempData |= 1<<i%8; //Set to true
-//         }else{
-//             //tempData &= !(1<<i%8); //Set to false
-//         }
-//     }
-
-//     *currentSparseData = (char)tempData;
-// }
-
 __global__ void discretiseKernel(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, cv::cuda::PtrStepSz<u_char> imgDst, unsigned char min, unsigned char max){
     // Get our global thread ID
     int xdst = blockIdx.x*blockDim.x +threadIdx.x;
@@ -487,7 +394,6 @@ __global__ void discretiseKernel(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, 
     imgDst(ydst,xdst) = newVal;
 
 }
-///////////////////
 
 
 void channelSampling(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, cv::cuda::PtrStepSz<u_char> samplingMapGPU, cudaStream_t stream){
@@ -561,25 +467,6 @@ void photoreceptorSampling(cv::cuda::PtrStepSz<uchar3> imgSrc, cv::cuda::PtrStep
 
 }
 
-//void cropCenterAndRemap(cv::cuda::PtrStepSz<uchar> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, int radiusToRemove, cudaStream_t stream)
-//{
-//    //int blockSize, gridSize;
-//    dim3 grid, block;
-
-//    // Number of threads in each thread block
-////    blockSize = 960;
-//    block.x = BLOCK_SIZE;
-//    block.y = BLOCK_SIZE;
-
-//    // Number of thread blocks in grid
-//    //gridSize = (int)ceil((float)(imgDst.cols*imgDst.rows)/blockSize);
-//    grid.x = (int)ceil((float)(imgDst.cols)/block.x);
-//    grid.y = (int)ceil((float)(imgDst.rows)/block.y);
-////__global__ void photoreceptorSamplingKernel1C(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Cone* conesArray, int conesArrayWidth, int /*conesArrayHeight*/)
-//    sphotoreceptorSamplingKernel1C<<<grid, block>>>(imgSrc, imgDst, coneArrayGPU, conesWidth,conesHeight);
-
-//}
-
 void multiConvolve(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, Ganglionar* cellsArrayGPU, int cellsArrayWidth, int cellsArrayHeight,cudaStream_t stream){
 
 
@@ -602,40 +489,16 @@ void multiConvolve(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_cha
 
 void directionSelectiveComputation(cv::cuda::PtrStepSz<u_char> imgSrc, cv::cuda::PtrStepSz<u_char> imgDst, cv::cuda::PtrStepSz<u_char> imgPrev,Point* directiveMappingSrc,Point* directiveMappingDst, int directiveMappingSize, cudaStream_t stream){
 
-
     //int blockSize, gridSize;
     dim3 grid, block;
 
-
     // Number of threads in each thread block
     block.x = 256;
-    //block.x = BLOCK_SIZE;
-    //block.y = BLOCK_SIZE;
-
-    // Number of thread blocks in grid
-    //gridSize = (int)ceil((float)(imgDst.cols*imgDst.rows)/blockSize);
-    //grid.x = (int)ceil((float)(imgDst.cols)/block.x);
-    //grid.y = (int)ceil((float)(imgDst.rows)/block.y);
-
 
     grid.x = (int)ceil((float)(directiveMappingSize)/(float)block.x);
     directionSelectiveKernel<<<grid, block>>>(imgSrc, imgDst, imgPrev,directiveMappingSrc,directiveMappingDst,directiveMappingSize);
 
 }
-
-// void sparse(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, GpuBitArray2D& imgDst, unsigned char minval, unsigned char maxVal, cudaStream_t stream){
-//     dim3 grid, block;
-//     imgDst.resize(imgSrc.cols*depth,imgSrc.rows);
-
-//     // Number of threads in each thread block
-//     block.x = BLOCK_SIZE;
-//     block.y = BLOCK_SIZE;
-
-//     grid.x = (int)ceil((float)(imgSrc.cols)/block.x);
-//     grid.y = (int)ceil((float)(imgSrc.rows)/block.y);
-
-//     sparseKernel<<<grid, block>>>(imgSrc, depth, imgDst.data(),minval,maxVal);
-// }
 
 void discretise(cv::cuda::PtrStepSz<u_char> imgSrc, int depth, cv::cuda::PtrStepSz<u_char>  imgDst, unsigned char minval, unsigned char maxVal, cudaStream_t stream){
     dim3 grid, block;

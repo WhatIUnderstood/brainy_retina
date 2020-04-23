@@ -18,12 +18,20 @@ struct ConeModelConfig
     double ph_L_cone_ratio = 25.0 / 100.0;
 };
 
+class ConeDensityFunction : public DensityFunction
+{
+public:
+    double at(double ecc_deg) const override
+    {
+        return convertion::convert_mm2_to_deg2(ecc_deg, std::exp(0.18203247 * std::pow(std::log(ecc_deg + 1.0), 2) + -1.74195991 * std::log(ecc_deg + 1.0) + 12.18370016));
+    }
+};
+
 class ConeModel : public GenericModel
 {
 public:
-    ConeModel(const ConeModelConfig &config) : GenericModel([this](double ecc) { return this->coneDensityFunction(ecc); }, 0, 40, 0.05)
+    ConeModel(const ConeModelConfig &config) : GenericModel(std::make_unique<ConeDensityFunction>(), 0, 40, 0.05), config_(config)
     {
-        config_ = config;
         std::cout
             << "Cone density at 0°: " << density_graph_.y[0] << " cones/deg^2" << std::endl;
     }
@@ -31,12 +39,6 @@ public:
     const ConeModelConfig &config() const
     {
         return config_;
-    }
-
-private:
-    double coneDensityFunction(double ecc)
-    {
-        return convertion::convert_mm2_to_deg2(ecc, std::exp(0.18203247 * std::pow(std::log(ecc + 1.0), 2) + -1.74195991 * std::log(ecc + 1.0) + 12.18370016));
     }
 
 private:
