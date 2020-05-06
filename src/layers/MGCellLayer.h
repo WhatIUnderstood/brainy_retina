@@ -46,8 +46,6 @@ public:
         double ganglionarExternalRadius;
         double ganglionarInternalRadius;
 
-        //cv::Mat mat(cells_cpu_.height, cells_cpu_.width, CV_8UC3, cv::Vec3b(255, 255, 255));
-
         // Map containing info on the ganglionar cells properties
         std::map<std::string, std::vector<float>> description_map;
 

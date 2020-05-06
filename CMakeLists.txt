@@ -125,9 +125,9 @@ set(OPENCV_CMAKE_PATH /opt/opencv/3.2.0/ )
 
 set(OPENCV_ROOT_DIR /opt/opencv/3.2.0)
 
-cuda_add_executable(gpuretina_test tests/opencv/main.cpp)
-target_include_directories(gpuretina_test PUBLIC src/ third_party/CLI11/include)
-TARGET_LINK_LIBRARIES(gpuretina_test gpuretina ${CUDA_LIBRARIES} ${OpenCV_LIBRARIES})
+cuda_add_executable(gpuretina_viz example/main.cpp)
+target_include_directories(gpuretina_viz PUBLIC src/ third_party/CLI11/include)
+TARGET_LINK_LIBRARIES(gpuretina_viz gpuretina ${CUDA_LIBRARIES} ${OpenCV_LIBRARIES})
 
 
 ### Force QT Creator to display all files
