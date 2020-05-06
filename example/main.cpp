@@ -49,7 +49,9 @@ int main(int argc, char *argv[])
     RetinaCuda retina(1);
     retina.initRetina(params);
 
+#ifdef WITH_MATPLOTLIB
     retina.plotLayersInfos();
+#endif
 
     cv::cuda::GpuMat gpuMatSrc(params.input_width, params.input_height, CV_8UC1);
     cv::cuda::GpuMat gpuMatCones;

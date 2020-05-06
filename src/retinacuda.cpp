@@ -113,6 +113,7 @@ void RetinaCuda::initRetina(Parameters param)
     initSelectiveCells();
 }
 
+#ifdef WITH_MATPLOTLIB
 void RetinaCuda::plotLayersInfos()
 {
     if (cone_layer_ptr_)
@@ -129,6 +130,7 @@ void RetinaCuda::plotLayersInfos()
     }
     plt::show();
 }
+#endif
 
 std::vector<Point> RetinaCuda::initSelectiveCells()
 {

@@ -68,7 +68,10 @@ public:
 
     // Utils
     cv::Mat drawConeMap();
+
+    #ifdef WITH_MATPLOTLIB
     void plotLayersInfos();
+    #endif
 
     //Test
     void discretise(cv::cuda::GpuMat &imgSrc, int vals, cv::cuda::GpuMat &output, unsigned char min_value = 0, unsigned char max_value = 255);
