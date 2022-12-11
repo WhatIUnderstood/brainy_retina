@@ -1,16 +1,32 @@
-FROM nvidia/cuda:10.0-devel
+FROM nvidia/cuda:10.2-devel-ubuntu18.04
 
 WORKDIR /opt/devel
 
 # Must have packages to dev
-RUN apt update && apt install -y cmake wget unzip sudo gdb
-
-### x264 v4l-utils apt install libcanberra-gtk-module
+RUN apt update && apt install -y \
+    cmake \
+    wget \
+    unzip \
+    sudo \
+    gdb \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install opencv with cuda support
-RUN apt install -y libz-dev libglib2.0-dev libjpeg-dev libpng-dev libtiff-dev ffmpeg libavutil-dev libavcodec-dev libavformat-dev libswscale-dev libgtk2.0-dev
-RUN mkdir /opt/opencv/
-RUN cd /opt/opencv/ \
+RUN apt update && apt install -y \
+    libz-dev \
+    libglib2.0-dev \
+    libjpeg-dev libpng-dev \
+    libtiff-dev \
+    ffmpeg \
+    libavutil-dev \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    libgtk2.0-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir /opt/opencv/ \
+    && cd /opt/opencv/ \
     && wget https://github.com/opencv/opencv_contrib/archive/3.4.9.zip \
     && unzip 3.4.9.zip \
     && rm 3.4.9.zip
@@ -30,7 +46,11 @@ RUN cd /opt/opencv \
     && rm 3.4.9.zip
 
 # install matplotlib-cpp dependencies (optional)
-RUN DEBIAN_FRONTEND=noninteractive apt install -y python-matplotlib python-numpy python2.7-dev
+RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y \
+    python-matplotlib \
+    python-numpy \
+    python2.7-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set root password inside docker in order to install new package for dev
 RUN echo "root:root"| chpasswd
