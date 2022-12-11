@@ -6,7 +6,7 @@ Retina simulation from digital camera source. The following outputs can be gener
 - Parvo output by simulating the midget cells outputs
 - Magno output by simulating the parasol cells. Temporal aspects are not yet simulated
 
-Parvo and Magno output are two different matrices whith values between 0 and 255. The value 0 represent a low pulse frequency (near 0 Hz) and 255 a high pulse frequency (more than 100 Hz).
+Parvo and Magno outputs are two different matrices whith values between 0 and 255. The value 0 represent a low pulse frequency (near 0 Hz) and 255 a high pulse frequency (more than 100 Hz).
 
 This project generate a library that use GPU acceleration by using cuda. No pure CPU support is done for now.
 

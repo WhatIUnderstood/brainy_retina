@@ -1,112 +1,126 @@
 #pragma once
 
-#include <memory>
-#include <vector>
-#include <opencv2/opencv.hpp>
-#include <opencv2/highgui.hpp>
-#include "opencv2/core/cuda.hpp"
-#include "Cuda/retinastructs.h"
-#include <random>
 #include <iostream>
+#include <memory>
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/opencv.hpp>
+#include <random>
+#include <vector>
 
-#include "Utils/ramp_utils.h"
-
+#include "gpu/retinastructs.h"
 #include "simulations/ConeModel.h"
-#include "simulations/PixelConeModel.h"
 #include "simulations/MGCellsSim.h"
+#include "simulations/PixelConeModel.h"
+#include "utils/ramp_utils.h"
 
 class ConeLayer;
 class MGCellLayer;
 class PGCellLayer;
 
 /**
- * @brief Class performing retina processing from a camera input
+ * @brief Class simulating the retina response from a camera input
  *
  */
-class RetinaCuda
-{
-public:
-    struct Parameters
-    {
-        ///// Raw input params /////
-        int input_width = 0;  // in pixels
-        int input_height = 0; // in pixels
+class RetinaCuda {
+ public:
+  struct Parameters {
+    //! input image width/height in pixel
+    int input_width = 0;
+    int input_height = 0;
 
-        ConeModelConfig ph_config;
-        PixelConeModelConfig pix_config;
+    //! Cone model configuration (ratio of each kind of cone)
+    ConeModelConfig ph_config;
+    //! Camera resolution and hfov
+    PixelConeModelConfig pix_config;
 
-        int random_seed = 0;
-    };
+    //! random seed to generate cone distribution
+    int random_seed = 0;
+  };
 
-    RetinaCuda(int gpu = 0);
-    ~RetinaCuda();
-    void initRetina(Parameters param);
+  /**
+   * @brief Construct a new Retina Cuda object
+   *
+   * @param gpu gpu id to use
+   */
+  RetinaCuda(int gpu = 0);
+  ~RetinaCuda();
 
-    ///
-    /// \brief applyPhotoreceptorSampling
-    /// \param imgSrc
-    /// \param imgDst
-    ///
-    void applyPhotoreceptorSampling(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
+  /**
+   * @brief Initialize the retina model
+   *
+   * @param param
+   */
+  void initRetina(Parameters param);
 
-    ///
-    /// \brief
-    /// \param imgSrc
-    /// \param imgDst
-    ///
-    void applyParvoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
+  /**
+   * @brief Generate the photoreceptor response from a given image
+   *
+   * @param imgSrc input grayscale or rgb image
+   * @param imgDst photoreceptor response
+   */
+  void applyPhotoreceptorSampling(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
 
-    void applyMagnoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
+  /**
+   * @brief Generate the Parvo ganglionar response from the given photoreceptor response
+   *
+   * @param imgSrc photoreceptor reponse
+   * @param imgDst resulting parvo ganglionar response
+   */
+  void applyParvoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
 
-    ///
-    /// \brief
-    /// \param imgSrc
-    /// \param imgDst
-    /// \param prevImage
-    ///
-    void applyDirectiveGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cv::cuda::GpuMat &prevImage);
+  /**
+   * @brief Generate the Magno ganglionar response from the given photoreceptor response
+   *
+   * @param imgSrc photoreceptor reponse
+   * @param imgDst resulting magno ganglionar response
+   */
+  void applyMagnoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst);
 
-    // Utils
-    cv::Mat drawConeMap();
+  /**
+   * @brief Generate the directive ganglionar response from the current and last photoreceptive response
+   *
+   * @param imgSrc photoreceptor reponse
+   * @param imgDst directive ganglionar response
+   * @param prevImage previous photoreceptor reponse
+   */
+  void applyDirectiveGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cv::cuda::GpuMat &prevImage);
 
-    #ifdef WITH_MATPLOTLIB
-    void plotLayersInfos();
-    #endif
+  /**
+   * @brief Generate an RGB image to visualize the cones distribution
+   *
+   * @return cv::Mat
+   */
+  cv::Mat drawConeMap();
 
-    //Test
-    void discretise(cv::cuda::GpuMat &imgSrc, int vals, cv::cuda::GpuMat &output, unsigned char min_value = 0, unsigned char max_value = 255);
+#ifdef WITH_MATPLOTLIB
+  void plotLayersInfos();
+#endif
 
-protected:
-    virtual std::vector<Point> initSelectiveCells();
+ protected:
+  virtual std::vector<Point> initSelectiveCells();
 
-private:
-    enum class GC_TYPE
-    {
-        Midget,
-        Parasol
-    };
+ private:
+  bool initPhotoGpu(const Cones &cones);
+  bool initMCellsGpu(const GanglionarCells &mgcells);
+  bool initPCellsGpu(const GanglionarCells &pcells);
+  bool initDirectiveGpu(std::vector<Point> photoSrc, std::vector<Point> photoDst);
 
-private:
-    bool initPhotoGpu(const Cones &cones);
-    bool initMCellsGpu(const GanglionarCells &mgcells);
-    bool initPCellsGpu(const GanglionarCells &pcells);
-    bool initDirectiveGpu(std::vector<Point> photoSrc, std::vector<Point> photoDst);
+  Cone *gpuCones;
+  Ganglionar *gpuMCells;
+  Ganglionar *gpuPCells;
 
-    Cone *gpuCones;
-    Ganglionar *gpuMCells;
-    Ganglionar *gpuPCells;
+  Point *d_magnoMappingSrc;
+  Point *d_magnoMappingDst;
+  int directive_width;
+  int directive_height;
+  int magnoMappingSize;
+  cv::cuda::GpuMat gpuChannelSampling;
+  std::vector<Point> magnoMappingSrc;
+  std::vector<Point> magnoMappingDst;
+  Parameters parameters;
 
-    Point *d_magnoMappingSrc;
-    Point *d_magnoMappingDst;
-    int directive_width;
-    int directive_height;
-    int magnoMappingSize;
-    cv::cuda::GpuMat gpuChannelSampling;
-    std::vector<Point> magnoMappingSrc;
-    std::vector<Point> magnoMappingDst;
-    Parameters parameters;
-
-    std::unique_ptr<ConeLayer> cone_layer_ptr_;
-    std::unique_ptr<MGCellLayer> mgcells_layer_ptr_;
-    std::unique_ptr<PGCellLayer> pgcells_layer_ptr_;
+  std::unique_ptr<ConeLayer> cone_layer_ptr_;
+  std::unique_ptr<MGCellLayer> mgcells_layer_ptr_;
+  std::unique_ptr<PGCellLayer> pgcells_layer_ptr_;
 };

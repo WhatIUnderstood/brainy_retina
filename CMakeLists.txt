@@ -16,7 +16,7 @@ if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
 endif()
 
 ## Find cuda on opencv dependencies
-set(CUDA_SDK_ROOT_DIR /opt/cuda/cuda-8.0)
+set(CUDA_SDK_ROOT_DIR /opt/gpu/cuda-8.0)
 find_package(CUDA REQUIRED 8.0) # TODO minimal version for unified memory
 find_package(OpenCV 3 COMPONENTS core imgproc highgui videoio HINTS /opt/opencv/3.2.0/ )#PATHS ${OPENCV_CMAKE_PATH})
 
@@ -98,12 +98,12 @@ endif()
 
 ENDMACRO(INSTALL_HEADERS_WITH_DIRECTORY)
 
-set(HS "src/retinacuda.h;src/Cuda/retinastructs.h;src/Cuda/declaration_helper.cuh")
+set(HS "src/retinacuda.h;src/gpu/retinastructs.h;src/gpu/declaration_helper.cuh")
 
 INSTALL_HEADERS_WITH_DIRECTORY(HS "src/" "include/gpuretina")
 
 #set_target_properties(gpuretina PROPERTIES
-#  PUBLIC_HEADER "src/retinacuda.h;src/Cuda/retinastructs.h")
+#  PUBLIC_HEADER "src/retinacuda.h;src/gpu/retinastructs.h")
 
 install(TARGETS gpuretina
     EXPORT gpuretinaTargets
@@ -132,7 +132,7 @@ TARGET_LINK_LIBRARIES(gpuretina_viz gpuretina ${CUDA_LIBRARIES} ${OpenCV_LIBRARI
 
 ### Force QT Creator to display all files
 FILE(GLOB_RECURSE ALL_HEADERS_H "*.h")
-FILE(GLOB_RECURSE ALL_HEADERS_CUH "src/Cuda/*.cuh")
+FILE(GLOB_RECURSE ALL_HEADERS_CUH "src/gpu/*.cuh")
 add_custom_target(headers SOURCES ${ALL_HEADERS_H} ${ALL_HEADERS_CUH})
 
 #Qt Creator make parameter to get errors parsed properly (nvcc output differ from gcc)

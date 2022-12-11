@@ -1,7 +1,3 @@
-
-#include "retinacuda.h"
-#include "Utils/filesystemtools.h"
-
 #include <unistd.h>
 #include <iostream>
 #include <assert.h>
@@ -9,14 +5,14 @@
 #include <ctime>
 #include <iostream>
 
-//#include "opencv/cv.h"
+#include "CLI/CLI.hpp"
 #include "opencv/highgui.h"
 #include "opencv2/opencv.hpp"
-//#include "opencv2/videoio/videoio_c.h"
 
-#include "CLI/CLI.hpp"
+#include "retinacuda.h"
+#include "utils/filesystemtools.h"
 #include "utils.h"
-#include "Utils/colormap.h"
+#include "utils/colormap.h"
 
 typedef std::chrono::time_point<std::chrono::system_clock> TimePoint;
 typedef std::chrono::system_clock Time;

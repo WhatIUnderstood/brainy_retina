@@ -1,4 +1,4 @@
-# - Config file for the gpuretinaa package
+# - Config file for the gpuretina package
 # It defines the following variables
 #  FOOBAR_INCLUDE_DIRS - include directories for FooBar
 #  FOOBAR_LIBRARIES    - libraries to link against
