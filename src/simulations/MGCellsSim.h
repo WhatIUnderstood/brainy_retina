@@ -12,7 +12,7 @@
 #include "utils/interp_utils.h"
 
 /**
- * @brief Magno Ganglional cells layer
+ * @brief Midget Ganglional cells layer
  *
  */
 class MGCellsSim : public GenericEccentricityModel {

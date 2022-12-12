@@ -98,20 +98,22 @@ endif()
 
 ENDMACRO(INSTALL_HEADERS_WITH_DIRECTORY)
 
-set(HS "src/retinacuda.h;src/gpu/retinastructs.h;src/gpu/declaration_helper.cuh")
+set(HS "src/retinacuda.h"
+        "src/gpu/retinastructs.h"
+        "src/gpu/declaration_helper.cuh"
+        "src/RetinaCudaException.hpp"
+        "src/simulations/ConeModelConfig.h"
+        "src/simulations/PixelConeModelConfig.h")
+
 
 INSTALL_HEADERS_WITH_DIRECTORY(HS "src/" "include/gpuretina")
 
-#set_target_properties(gpuretina PROPERTIES
-#  PUBLIC_HEADER "src/retinacuda.h;src/gpu/retinastructs.h")
 
 install(TARGETS gpuretina
     EXPORT gpuretinaTargets
     LIBRARY DESTINATION lib
     PUBLIC_HEADER DESTINATION "${INSTALL_INCLUDE_DIR}"
 )
-#install(FILES ${CMAKE_BINARY_DIR}/libgpuretina.so DESTINATION "lib")
-#install(DIRECTORY src/ DESTINATION "include/gpuretina" FILES_MATCHING PATTERN "*.h*")
 
 ### Uninstall the library ###
 
@@ -137,17 +139,6 @@ add_custom_target(headers SOURCES ${ALL_HEADERS_H} ${ALL_HEADERS_CUH})
 
 #Qt Creator make parameter to get errors parsed properly (nvcc output differ from gcc)
 # make VERBOSE=1 3>&2 2>/tmp/error.out ; cat  /tmp/error.out | sed -r "s/\(([0-9]+)\)/:\1/g"  1>&2
-
-
-##### Export ####
-# Add all targets to the build-tree export set
-#export(TARGETS gpuretina
-#  FILE "${PROJECT_BINARY_DIR}/gpuretinaTargets.cmake")
-
-# Export the package for use from the build-tree
-# (this registers the build-tree with a global CMake-registry)
-#export(PACKAGE gpuretina)
-
 
 # Create the FooBarConfig.cmake and FooBarConfigVersion files
 file(RELATIVE_PATH REL_INCLUDE_DIR "${INSTALL_CMAKE_DIR}"

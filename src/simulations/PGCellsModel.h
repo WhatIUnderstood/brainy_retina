@@ -13,7 +13,7 @@
 #include "utils/interp_utils.h"
 
 /**
- * @brief Parvo Ganglionar cell layer
+ * @brief Parasol Ganglionar cell layer
  *
  */
 class PGCellsModel : public GenericEccentricityModel {

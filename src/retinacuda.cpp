@@ -10,6 +10,7 @@
 #include <opencv2/core/cuda_stream_accessor.hpp>
 #include <opencv2/core/cuda_types.hpp>
 
+#include "RetinaCudaException.hpp"
 #include "data/data.h"
 #include "gpu/cuda_retina_kernels.cuh"
 #include "layers/ConeLayer.h"
@@ -24,17 +25,11 @@
 namespace plt = matplotlibcpp;
 #endif
 
-class RetinaCudaException : public std::exception {
- public:
-  RetinaCudaException(std::string message) { this->message = message; }
-
-  // exception interface
- public:
-  const char *what() const throw() { return message.c_str(); }
-
- private:
-  std::string message;
-};
+void throwRetinaCudaException(cudaError_t error) {
+  if (error != cudaSuccess) {
+    throw RetinaCudaException("RetinaCuda: Cuda error " + std::string(cudaGetErrorString(error)));
+  }
+}
 
 RetinaCuda::RetinaCuda(int gpu) {
   gpuMCells = 0;
@@ -49,7 +44,6 @@ RetinaCuda::RetinaCuda(int gpu) {
     throw RetinaCudaException("Gpu not avaliable");
   }
 
-  // err = cudaSetDevice(gpu)
   cv::cuda::setDevice(gpu);
 
   cv::cuda::DeviceInfo deviceInfos(gpu);
@@ -114,9 +108,6 @@ std::vector<Point> RetinaCuda::initSelectiveCells() {
   magnoMappingSrc.clear();
   magnoMappingDst.clear();
   const Cones &cones_cpu = cone_layer_ptr_->cones();
-  // int x = 0;
-  // int y = 0;
-  // int max_x = 0;
 
   unsigned int width = cones_cpu.width / 2;
   width -= width % BLOCK_SIZE;
@@ -172,18 +163,11 @@ void RetinaCuda::applyPhotoreceptorSampling(cv::cuda::GpuMat &imgSrc, cv::cuda::
     gpu::photoreceptorSampling1C(imgSrc, imgDst, gpuCones, cones_cpu.width, cones_cpu.height,
                                  cudaStreamDefault /*(cudaStream_t)cuda_stream*/);
     cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-      std::cerr << "Error: " << cudaGetErrorString(err) << " (you may have incorrect arch in cmake)" << std::endl;
-      exit(1);
-    }
+    throwRetinaCudaException(err);
   } else if (imgSrc.channels() == 3) {
     gpu::photoreceptorSampling3C(imgSrc, imgDst, gpuCones, cones_cpu.width, cones_cpu.height,
                                  cudaStreamDefault /*(cudaStream_t)cuda_stream*/);
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-      std::cerr << "Error: " << cudaGetErrorString(err) << " (you may have incorrect arch in cmake)" << std::endl;
-      exit(1);
-    }
+    throwRetinaCudaException(cudaGetLastError());
   } else {
     std::cerr << "Not implemented" << std::endl;
   }
@@ -230,7 +214,6 @@ bool RetinaCuda::initPhotoGpu(const Cones &cones_cpu) {
 }
 
 void RetinaCuda::applyParvoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst) {
-  // imgDst
   if (imgDst.cols != mgcells_layer_ptr_->mgcells().width || imgDst.rows != mgcells_layer_ptr_->mgcells().height) {
     imgDst.create(mgcells_layer_ptr_->mgcells().height, mgcells_layer_ptr_->mgcells().width, CV_8UC1);
     imgDst.setTo(0);
@@ -238,15 +221,10 @@ void RetinaCuda::applyParvoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst
 
   gpu::multiConvolve(imgSrc, imgDst, gpuMCells, mgcells_layer_ptr_->mgcells().width,
                      mgcells_layer_ptr_->mgcells().height, cudaStreamDefault);
-  cudaError_t err = cudaGetLastError();
-  if (err != cudaSuccess) {
-    std::cerr << "Error: " << cudaGetErrorString(err) << " (you may have incorrect arch in cmake)" << std::endl;
-    exit(1);
-  }
+  throwRetinaCudaException(cudaGetLastError());
 }
 
 void RetinaCuda::applyMagnoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst) {
-  // imgDst
   if (imgDst.cols != pgcells_layer_ptr_->pgcells().width || imgDst.rows != pgcells_layer_ptr_->pgcells().height) {
     imgDst.create(pgcells_layer_ptr_->pgcells().height, pgcells_layer_ptr_->pgcells().width, CV_8UC1);
     imgDst.setTo(0);
@@ -254,23 +232,14 @@ void RetinaCuda::applyMagnoGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst
 
   gpu::multiConvolve(imgSrc, imgDst, gpuPCells, pgcells_layer_ptr_->pgcells().width,
                      pgcells_layer_ptr_->pgcells().height, cudaStreamDefault);
-  cudaError_t err = cudaGetLastError();
-  if (err != cudaSuccess) {
-    std::cerr << "Error: " << cudaGetErrorString(err) << " (you may have incorrect arch in cmake)" << std::endl;
-    exit(1);
-  }
+  throwRetinaCudaException(cudaGetLastError());
 }
 
 void RetinaCuda::applyDirectiveGC(cv::cuda::GpuMat &imgSrc, cv::cuda::GpuMat &imgDst, cv::cuda::GpuMat &prevImage) {
-  // imgDst
   std::cout << "directive_height " << directive_height << "directive_width " << directive_width << std::endl;
   imgDst.create(directive_height, directive_width, CV_8UC1);
   imgDst.setTo(0);
   gpu::directionSelectiveComputation(imgSrc, imgDst, prevImage, d_magnoMappingSrc, d_magnoMappingDst, magnoMappingSize,
                                      cudaStreamDefault);
-  cudaError_t err = cudaGetLastError();
-  if (err != cudaSuccess) {
-    std::cerr << "Error: " << cudaGetErrorString(err) << " (you may have incorrect arch in cmake)" << std::endl;
-    exit(1);
-  }
+  throwRetinaCudaException(cudaGetLastError());
 }

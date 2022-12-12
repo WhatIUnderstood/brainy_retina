@@ -1,17 +1,14 @@
 #pragma once
 
-#include <iostream>
 #include <memory>
 #include <opencv2/core/cuda.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/opencv.hpp>
-#include <random>
 #include <vector>
 
 #include "gpu/retinastructs.h"
-#include "simulations/ConeModel.h"
-#include "simulations/MGCellsSim.h"
-#include "simulations/PixelConeModel.h"
+#include "simulations/ConeModelConfig.h"
+#include "simulations/PixelConeModelConfig.h"
 #include "utils/ramp_utils.h"
 
 class ConeLayer;

@@ -12,15 +12,7 @@
 #include "gpu/retinastructs.h"
 #include "utils/convertion.h"
 #include "utils/interp_utils.h"
-
-/**
- * @brief Camera intrinsic parameters.
- */
-struct PixelConeModelConfig {
-  double camera_hfov = 0;   // degree
-  int camera_width = 0;
-  int camera_height = 0;
-};
+#include "PixelConeModelConfig.h"
 
 /**
  * @brief Pixel density function along eccentricity
